@@ -272,11 +272,13 @@ type EngineVersionDetails struct {
 }
 
 type NodeSpec struct {
-	Name              string              `json:"name"`
-	Disks             map[string]DiskSpec `json:"disks"`
-	AllowScheduling   bool                `json:"allowScheduling"`
-	EvictionRequested bool                `json:"evictionRequested"`
-	Tags              []string            `json:"tags"`
+	Name              string   `json:"name"`
+	AllowScheduling   bool     `json:"allowScheduling"`
+	EvictionRequested bool     `json:"evictionRequested"`
+	Tags              []string `json:"tags"`
+
+	// Deprecated
+	Disks map[string]DiskSpec `json:"disks"`
 }
 
 const (
@@ -308,11 +310,20 @@ const (
 )
 
 type NodeStatus struct {
-	Conditions map[string]Condition   `json:"conditions"`
+	Conditions map[string]Condition `json:"conditions"`
+	Region     string               `json:"region"`
+	Zone       string               `json:"zone"`
+
+	// Deprecated
 	DiskStatus map[string]*DiskStatus `json:"diskStatus"`
-	Region     string                 `json:"region"`
-	Zone       string                 `json:"zone"`
 }
+
+type DiskState string
+
+const (
+	DiskStateConnected    = DiskState("connected")
+	DiskStateDisconnected = DiskState("disconnected")
+)
 
 type DiskSpec struct {
 	Path              string   `json:"path"`
@@ -320,15 +331,19 @@ type DiskSpec struct {
 	EvictionRequested bool     `json:"evictionRequested"`
 	StorageReserved   int64    `json:"storageReserved"`
 	Tags              []string `json:"tags"`
+	NodeID            string   `json:"nodeID"`
 }
 
 type DiskStatus struct {
+	OwnerID          string               `json:"ownerID"`
 	Conditions       map[string]Condition `json:"conditions"`
 	StorageAvailable int64                `json:"storageAvailable"`
 	StorageScheduled int64                `json:"storageScheduled"`
 	StorageMaximum   int64                `json:"storageMaximum"`
 	ScheduledReplica map[string]int64     `json:"scheduledReplica"`
 	DiskUUID         string               `json:"diskUUID"`
+	FSID             string               `json:"fsID"`
+	State            DiskState            `json:"state"`
 }
 
 type BackupStatus struct {
