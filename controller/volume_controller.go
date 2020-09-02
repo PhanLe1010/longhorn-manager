@@ -818,7 +818,7 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 	allScheduled := true
 	for _, r := range rs {
 		// check whether the replica need to be scheduled
-		if r.Spec.NodeID != "" {
+		if r.Spec.DiskID != "" {
 			continue
 		}
 		scheduledReplica, err := vc.scheduler.ScheduleReplica(r, rs, v)
@@ -1063,7 +1063,7 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 
 		for _, r := range rs {
 			// Don't attempt to start the replica or do anything else if it hasn't been scheduled.
-			if r.Spec.NodeID == "" {
+			if r.Spec.DiskID == "" || r.Spec.NodeID == "" {
 				continue
 			}
 			nodeDown, err := vc.ds.IsNodeDownOrDeleted(r.Spec.NodeID)
@@ -1083,7 +1083,7 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 		replicaAddressMap := map[string]string{}
 		for _, r := range rs {
 			// Ignore unscheduled replicas
-			if r.Spec.NodeID == "" {
+			if r.Spec.DiskID == "" || r.Spec.NodeID == "" {
 				continue
 			}
 			if r.Spec.FailedAt != "" {

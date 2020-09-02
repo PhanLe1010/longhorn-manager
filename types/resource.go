@@ -305,8 +305,10 @@ const (
 
 const (
 	DiskConditionReasonDiskPressure          = "DiskPressure"
+	DiskConditionReasonDiskNotReady          = "DiskNotReady"
 	DiskConditionReasonDiskFilesystemChanged = "DiskFilesystemChanged"
 	DiskConditionReasonNoDiskInfo            = "NoDiskInfo"
+	DiskConditionReasonNodeUnknown           = "NodeUnknown"
 )
 
 type NodeStatus struct {
