@@ -26,6 +26,7 @@ import (
 
 	"github.com/longhorn/longhorn-manager/upgrade/v070to080"
 	"github.com/longhorn/longhorn-manager/upgrade/v100to101"
+	"github.com/longhorn/longhorn-manager/upgrade/v102to110"
 	"github.com/longhorn/longhorn-manager/upgrade/v1alpha1"
 )
 
@@ -211,6 +212,9 @@ func doCRDUpgrade(namespace string, lhClient *lhclientset.Clientset) (err error)
 		return err
 	}
 	if err := v100to101.UpgradeCRDs(namespace, lhClient); err != nil {
+		return err
+	}
+	if err := v102to110.UpgradeCRDs(namespace, lhClient); err != nil {
 		return err
 	}
 	return nil
