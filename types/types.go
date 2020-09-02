@@ -138,6 +138,8 @@ const (
 	engineImagePrefix          = "ei-"
 	instanceManagerImagePrefix = "imi-"
 
+	diskNamePrefix = "disk-"
+
 	instanceManagerPrefix = "instance-manager-"
 	engineManagerPrefix   = instanceManagerPrefix + "e-"
 	replicaManagerPrefix  = instanceManagerPrefix + "r-"
@@ -260,6 +262,10 @@ func GetEngineImageChecksumName(image string) string {
 
 func GetInstanceManagerImageChecksumName(image string) string {
 	return instanceManagerImagePrefix + util.GetStringChecksum(strings.TrimSpace(image))[:ImageChecksumNameLength]
+}
+
+func GenerateDiskName() string {
+	return diskNamePrefix + util.RandomID()
 }
 
 func ValidateEngineImageChecksumName(name string) bool {
