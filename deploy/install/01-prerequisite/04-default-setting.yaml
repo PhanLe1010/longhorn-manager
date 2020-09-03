@@ -27,3 +27,4 @@ data:
     volume-attachment-recovery-policy:
     node-down-pod-deletion-policy:
     mkfs-ext4-parameters:
+    retain-disks-during-node-deletion:
