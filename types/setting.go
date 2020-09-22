@@ -63,6 +63,7 @@ const (
 	SettingNameNodeDownPodDeletionPolicy         = SettingName("node-down-pod-deletion-policy")
 	SettingNameMkfsExt4Parameters                = SettingName("mkfs-ext4-parameters")
 	SettingNamePriorityClass                     = SettingName("priority-class")
+	SettingNameRetainDisksDuringNodeDeletion     = SettingName("retain-disks-during-node-deletion")
 )
 
 var (
@@ -93,6 +94,7 @@ var (
 		SettingNameNodeDownPodDeletionPolicy,
 		SettingNameMkfsExt4Parameters,
 		SettingNamePriorityClass,
+		SettingNameRetainDisksDuringNodeDeletion,
 	}
 )
 
@@ -144,6 +146,7 @@ var (
 		SettingNameNodeDownPodDeletionPolicy:         SettingDefinitionNodeDownPodDeletionPolicy,
 		SettingNameMkfsExt4Parameters:                SettingDefinitionMkfsExt4Parameters,
 		SettingNamePriorityClass:                     SettingDefinitionPriorityClass,
+		SettingNameRetainDisksDuringNodeDeletion:     SettingDefinitionRetainDisksDuringNodeDeletion,
 	}
 
 	SettingDefinitionBackupTarget = SettingDefinition{
@@ -416,6 +419,15 @@ var (
 		Category:    SettingCategoryDangerZone,
 		Required:    false,
 		ReadOnly:    false,
+	}
+	SettingDefinitionRetainDisksDuringNodeDeletion = SettingDefinition{
+		DisplayName: "Retain disks during node deletion",
+		Description: `Determine if both connected and disconnected disks will be cleaned up before node removal`,
+		Category:    SettingCategoryGeneral,
+		Type:        SettingTypeBool,
+		Required:    true,
+		ReadOnly:    false,
+		Default:     "true",
 	}
 )
 
