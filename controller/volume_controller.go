@@ -862,6 +862,8 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 		rs[r.Name] = r
 	}
 
+	oldScheduledCondition, _ := v.Status.Conditions[types.VolumeConditionTypeScheduled]
+
 	scheduled := true
 	for _, r := range rs {
 		// check whether the replica need to be scheduled
@@ -906,9 +908,13 @@ func (vc *VolumeController) ReconcileVolumeState(v *longhorn.Volume, es map[stri
 				}
 			}
 			if atLeastOneReplicaAvailable {
-				v.Status.Conditions = types.SetCondition(v.Status.Conditions,
-					types.VolumeConditionTypeScheduled, types.ConditionStatusTrue, "",
-					"Reset schedulable due to allow volume creation with degraded availability")
+				if oldScheduledCondition.Status == types.ConditionStatusTrue {
+					v.Status.Conditions[types.VolumeConditionTypeScheduled] = oldScheduledCondition
+				} else {
+					v.Status.Conditions = types.SetCondition(v.Status.Conditions,
+						types.VolumeConditionTypeScheduled, types.ConditionStatusTrue, "",
+						"Reset schedulable due to allow volume creation with degraded availability")
+				}
 				scheduled = true
 			}
 		}
