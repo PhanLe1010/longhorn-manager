@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"reflect"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
@@ -191,6 +193,10 @@ func (s *Server) SnapshotBackup(w http.ResponseWriter, req *http.Request) (err e
 		return err
 	}
 
+	for count := 30; count > 0; count-- {
+		logrus.Infof("Sleeping for %v more seconds", count)
+		time.Sleep(time.Second)
+	}
 	return s.responseWithVolume(w, req, volName, nil)
 }
 
