@@ -43,6 +43,7 @@ type LonghornV1beta2Interface interface {
 	ShareManagersGetter
 	SnapshotsGetter
 	VolumesGetter
+	VolumeAttachmentsGetter
 }
 
 // LonghornV1beta2Client is used to interact with features provided by the longhorn.io group.
@@ -116,6 +117,10 @@ func (c *LonghornV1beta2Client) Snapshots(namespace string) SnapshotInterface {
 
 func (c *LonghornV1beta2Client) Volumes(namespace string) VolumeInterface {
 	return newVolumes(c, namespace)
+}
+
+func (c *LonghornV1beta2Client) VolumeAttachments(namespace string) VolumeAttachmentInterface {
+	return newVolumeAttachments(c, namespace)
 }
 
 // NewForConfig creates a new LonghornV1beta2Client for the given config.

@@ -58,6 +58,8 @@ type Interface interface {
 	Snapshots() SnapshotInformer
 	// Volumes returns a VolumeInformer.
 	Volumes() VolumeInformer
+	// VolumeAttachments returns a VolumeAttachmentInformer.
+	VolumeAttachments() VolumeAttachmentInformer
 }
 
 type version struct {
@@ -154,4 +156,9 @@ func (v *version) Snapshots() SnapshotInformer {
 // Volumes returns a VolumeInformer.
 func (v *version) Volumes() VolumeInformer {
 	return &volumeInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// VolumeAttachments returns a VolumeAttachmentInformer.
+func (v *version) VolumeAttachments() VolumeAttachmentInformer {
+	return &volumeAttachmentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
