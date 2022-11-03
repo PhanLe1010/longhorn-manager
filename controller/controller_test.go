@@ -96,6 +96,7 @@ const (
 	TestRecurringJobGroupName = "test-recurring-job-group"
 
 	TestCustomResourceDefinitionName = "test-crd"
+	TestVolumeAttachmentName         = "test-volume"
 )
 
 var (
