@@ -895,3 +895,7 @@ func CreateCniAnnotationFromSetting(storageNetwork *longhorn.Setting) string {
 	storageNetworkSplit := strings.Split(storageNetwork.Value, "/")
 	return fmt.Sprintf("[{\"namespace\": \"%s\", \"name\": \"%s\", \"interface\": \"%s\"}]", storageNetworkSplit[0], storageNetworkSplit[1], StorageNetworkInterface)
 }
+
+func GetLHVolumeAttachmentNameFromVolumeName(volName string) string {
+	return volName
+}
