@@ -1325,6 +1325,13 @@ func toVolumeResource(v *longhorn.Volume, ves []*longhorn.Engine, vrs []*longhor
 	if v.Status.Robustness == longhorn.VolumeRobustnessFaulted {
 		actions["salvage"] = struct{}{}
 	} else {
+
+		actions["snapshotCRCreate"] = struct{}{}
+		actions["snapshotCRGet"] = struct{}{}
+		actions["snapshotCRList"] = struct{}{}
+		actions["snapshotCRDelete"] = struct{}{}
+		actions["snapshotBackup"] = struct{}{}
+
 		switch v.Status.State {
 		case longhorn.VolumeStateDetached:
 			actions["activate"] = struct{}{}
@@ -1343,10 +1350,6 @@ func toVolumeResource(v *longhorn.Volume, ves []*longhorn.Engine, vrs []*longhor
 			actions["recurringJobAdd"] = struct{}{}
 			actions["recurringJobDelete"] = struct{}{}
 			actions["recurringJobList"] = struct{}{}
-			actions["snapshotCRCreate"] = struct{}{}
-			actions["snapshotCRGet"] = struct{}{}
-			actions["snapshotCRList"] = struct{}{}
-			actions["snapshotCRDelete"] = struct{}{}
 		case longhorn.VolumeStateAttaching:
 			actions["cancelExpansion"] = struct{}{}
 			actions["recurringJobAdd"] = struct{}{}
@@ -1361,7 +1364,6 @@ func toVolumeResource(v *longhorn.Volume, ves []*longhorn.Engine, vrs []*longhor
 			actions["snapshotGet"] = struct{}{}
 			actions["snapshotDelete"] = struct{}{}
 			actions["snapshotRevert"] = struct{}{}
-			actions["snapshotBackup"] = struct{}{}
 			actions["replicaRemove"] = struct{}{}
 			actions["engineUpgrade"] = struct{}{}
 			actions["updateReplicaCount"] = struct{}{}
@@ -1377,10 +1379,6 @@ func toVolumeResource(v *longhorn.Volume, ves []*longhorn.Engine, vrs []*longhor
 			actions["recurringJobAdd"] = struct{}{}
 			actions["recurringJobDelete"] = struct{}{}
 			actions["recurringJobList"] = struct{}{}
-			actions["snapshotCRCreate"] = struct{}{}
-			actions["snapshotCRGet"] = struct{}{}
-			actions["snapshotCRList"] = struct{}{}
-			actions["snapshotCRDelete"] = struct{}{}
 		}
 	}
 
