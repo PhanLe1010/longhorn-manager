@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
@@ -91,6 +92,7 @@ type Snapshot struct {
 type SnapshotCR struct {
 	client.Resource
 	Name           string            `json:"name"`
+	CRCreationTime string            `json:"crCreationTime"`
 	Volume         string            `json:"volume"`
 	CreateSnapshot bool              `json:"createSnapshot"`
 	Parent         string            `json:"parent"`
@@ -1481,6 +1483,7 @@ func toSnapshotCRResource(s *longhorn.Snapshot) *SnapshotCR {
 			Type: "snapshotCR",
 		},
 		Name:           s.Name,
+		CRCreationTime: s.CreationTimestamp.Format(time.RFC3339),
 		Volume:         s.Spec.Volume,
 		CreateSnapshot: s.Spec.CreateSnapshot,
 		Parent:         s.Status.Parent,
