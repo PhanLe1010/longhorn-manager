@@ -4,7 +4,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type Attachment struct {
+type AttachmentSpec struct {
 	// The unique ID of this attachment. Used to differentiate different attachments of the same volume.
 	// +optional
 	ID string `json:"id"`
@@ -16,12 +16,20 @@ type Attachment struct {
 	// Optional additional parameter for this attachment
 	// +optional
 	Parameters map[string]string `json:"parameters"`
+	//// +optional
+	//Attached *bool `json:"attached,omitempty"`
+	//// +optional
+	//AttachError *VolumeError `json:"attachError,omitempty"`
+	//// +optional
+	//DetachError *VolumeError `json:"detachError,omitempty"`
+}
+
+type AttachmentStatus struct {
+	// The unique ID of this attachment. Used to differentiate different attachments of the same volume.
 	// +optional
-	Attached *bool `json:"attached,omitempty"`
-	// +optional
-	AttachError *VolumeError `json:"attachError,omitempty"`
-	// +optional
-	DetachError *VolumeError `json:"detachError,omitempty"`
+	ID string `json:"id"`
+	// +nullable
+	Conditions []Condition `json:"conditions"`
 }
 
 // VolumeError captures an error encountered during a volume operation.
@@ -80,6 +88,10 @@ const (
 	AttachmentParameterLastAttachedBy  = "lastAttachedBy"
 )
 
+const (
+	AttachmentStatusConditionTypeSatisfied = "Satisfied"
+)
+
 func GetAttacherPriorityLevel(t AttacherType) int {
 	switch t {
 	case AttacherTypeCSIAttacher:
@@ -124,15 +136,22 @@ func GetAttachmentID(attacherType AttacherType, id string) string {
 // VolumeAttachmentSpec defines the desired state of Longhorn VolumeAttachment
 type VolumeAttachmentSpec struct {
 	// +optional
-	Attachments map[string]*Attachment `json:"attachments"`
+	// TODO: maybe AttachmentRequest
+	AttachmentSpecs map[string]*AttachmentSpec `json:"attachmentSpecs"`
 	// The name of Longhorn volume of this VolumeAttachment
 	Volume string `json:"volume"`
 }
 
 // VolumeAttachmentStatus defines the observed state of Longhorn VolumeAttachment
 type VolumeAttachmentStatus struct {
+	// The current state of the volume. Synced from volume.status.state
+	CurrentVolumeState VolumeState `json:"currentVolumeState"`
+	// The node that volume is currently attached to. Synced from volume.status.currentNodeID
+	CurrentNodeID string `json:"currentNodeID"`
+	// The current attachment parameters of the volume. Synced from volume.Spec
+	Parameters map[string]string `json:"parameters"`
 	// +optional
-	Attachments map[string]*Attachment `json:"attachments"`
+	AttachmentStatuses map[string]*AttachmentStatus `json:"attachmentStatuses"`
 }
 
 // +genclient

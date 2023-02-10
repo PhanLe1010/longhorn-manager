@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/longhorn/longhorn-manager/datastore"
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/longhorn/longhorn-manager/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -16,8 +17,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller"
-	utilpointer "k8s.io/utils/pointer"
 	"reflect"
+	"strconv"
 	"time"
 )
 
@@ -228,6 +229,9 @@ func (vac *VolumeAttachmentController) reconcile(vaName string) (err error) {
 		return
 	}()
 
+	// TODO: Make a comment that the desire state is recored in VA.Spec
+	// The current state is recored inside volume CR
+
 	vac.handleVolumeDetachment(va, vol)
 
 	vac.handleVolumeAttachment(va, vol)
@@ -245,11 +249,11 @@ func (vac *VolumeAttachmentController) handleVolumeDetachment(va *longhorn.Volum
 		return
 	}
 
-	// There is no attachment that request the current vol.Spec.NodeID.
+	// There is no attachmentSpec that request the current vol.Spec.NodeID.
 	// Therefore, set desire state of volume to empty
 	vol.Spec.NodeID = ""
-	// reset the attachment parameter
-	setAttachmentParameter(&longhorn.Attachment{}, vol)
+	// reset the attachment parameter for vol
+	setAttachmentParameter(map[string]string{}, vol)
 	return
 }
 
@@ -259,9 +263,9 @@ func shouldDoDetach(va *longhorn.VolumeAttachment, vol *longhorn.Volume) bool {
 	if vol.Status.Robustness == longhorn.VolumeRobustnessFaulted {
 		return true
 	}
-	for _, attachment := range va.Spec.Attachments {
-		// Found one attachment that is still requesting volume to attach to the current node
-		if attachment.NodeID == vol.Spec.NodeID && verifyAttachmentParameters(attachment, vol) {
+	for _, attachmentSpec := range va.Spec.AttachmentSpecs {
+		// Found one attachmentSpec that is still requesting volume to attach to the current node
+		if attachmentSpec.NodeID == vol.Spec.NodeID && verifyAttachmentParameters(attachmentSpec.Parameters, vol) {
 			return false
 		}
 	}
@@ -269,7 +273,7 @@ func shouldDoDetach(va *longhorn.VolumeAttachment, vol *longhorn.Volume) bool {
 }
 
 func (vac *VolumeAttachmentController) handleVolumeAttachment(va *longhorn.VolumeAttachment, vol *longhorn.Volume) {
-	// Wait for volume to be ready to be fully detached
+	// Wait for volume to be fully detached
 	if vol.Spec.NodeID != "" ||
 		vol.Spec.MigrationNodeID != "" ||
 		vol.Status.PendingNodeID != "" ||
@@ -283,31 +287,31 @@ func (vac *VolumeAttachmentController) handleVolumeAttachment(va *longhorn.Volum
 		return
 	}
 
-	attachment := selectAttachmentToAttach(va)
-	if attachment == nil {
+	attachmentSpec := selectAttachmentSpecToAttach(va)
+	if attachmentSpec == nil {
 		return
 	}
 
-	vol.Spec.NodeID = attachment.NodeID
-	setAttachmentParameter(attachment, vol)
+	vol.Spec.NodeID = attachmentSpec.NodeID
+	setAttachmentParameter(attachmentSpec.Parameters, vol)
 	return
 }
 
-func selectAttachmentToAttach(va *longhorn.VolumeAttachment) *longhorn.Attachment {
-	if len(va.Spec.Attachments) == 0 {
+func selectAttachmentSpecToAttach(va *longhorn.VolumeAttachment) *longhorn.AttachmentSpec {
+	if len(va.Spec.AttachmentSpecs) == 0 {
 		return nil
 	}
 
-	highPriorityAttachments := []*longhorn.Attachment{}
+	highPriorityAttachments := []*longhorn.AttachmentSpec{}
 	maxAttacherPriorityLevel := 0
-	for _, attachment := range va.Spec.Attachments {
+	for _, attachment := range va.Spec.AttachmentSpecs {
 		priorityLevel := longhorn.GetAttacherPriorityLevel(attachment.Type)
 		if priorityLevel > maxAttacherPriorityLevel {
 			maxAttacherPriorityLevel = priorityLevel
 		}
 	}
 
-	for _, attachment := range va.Spec.Attachments {
+	for _, attachment := range va.Spec.AttachmentSpecs {
 		priorityLevel := longhorn.GetAttacherPriorityLevel(attachment.Type)
 		if priorityLevel == maxAttacherPriorityLevel {
 			highPriorityAttachments = append(highPriorityAttachments, attachment)
@@ -328,84 +332,110 @@ func selectAttachmentToAttach(va *longhorn.VolumeAttachment) *longhorn.Attachmen
 }
 
 func (vac *VolumeAttachmentController) handleVAStatusUpdate(va *longhorn.VolumeAttachment, vol *longhorn.Volume) error {
-	// initialize the va.Status.Attachments map if needed
-	if va.Status.Attachments == nil {
-		va.Status.Attachments = make(map[string]*longhorn.Attachment)
+	// sync with volume resource
+	va.Status.CurrentNodeID = vol.Status.CurrentNodeID
+	va.Status.CurrentVolumeState = vol.Status.State
+	va.Status.Parameters = map[string]string{
+		longhorn.AttachmentParameterDisableFrontend: strconv.FormatBool(vol.Spec.DisableFrontend),
+		longhorn.AttachmentParameterLastAttachedBy:  vol.Spec.LastAttachedBy,
 	}
 
-	// Attachments that desires detaching
-	for _, attachment := range va.Status.Attachments {
-		if _, ok := va.Spec.Attachments[attachment.ID]; !ok {
-			updateStatusForDesiredDetachingAttachment(attachment, va, vol)
+	// initialize the va.Status.Attachments map if needed
+	if va.Status.AttachmentStatuses == nil {
+		va.Status.AttachmentStatuses = make(map[string]*longhorn.AttachmentStatus)
+	}
+
+	// Attachment that desires detaching
+	for _, attachmentStatus := range va.Status.AttachmentStatuses {
+		if _, ok := va.Spec.AttachmentSpecs[attachmentStatus.ID]; !ok {
+			updateStatusForDesiredDetachingAttachment(attachmentStatus.ID, va)
 		}
 	}
 
-	// Attachments that are requesting to attach
-	for _, attachment := range va.Spec.Attachments {
-		updateStatusForDesiredAttachingAttachment(attachment, va, vol)
+	// Attachment that requests to attach
+	for _, attachmentSpec := range va.Spec.AttachmentSpecs {
+		updateStatusForDesiredAttachingAttachment(attachmentSpec.ID, va, vol)
 	}
 	return nil
 }
 
-func updateStatusForDesiredDetachingAttachment(attachment *longhorn.Attachment, va *longhorn.VolumeAttachment, vol *longhorn.Volume) {
+func updateStatusForDesiredDetachingAttachment(attachmentID string, va *longhorn.VolumeAttachment) {
 	//TODO: How to handle vol.Status.IsStandby volume
-	delete(va.Status.Attachments, attachment.ID)
+	delete(va.Status.AttachmentStatuses, attachmentID)
 }
 
-func updateStatusForDesiredAttachingAttachment(specAttachment *longhorn.Attachment, va *longhorn.VolumeAttachment, vol *longhorn.Volume) {
-	if _, ok := va.Status.Attachments[specAttachment.ID]; !ok {
-		va.Status.Attachments[specAttachment.ID] = &longhorn.Attachment{
-			ID:         specAttachment.ID,
-			Type:       specAttachment.Type,
-			NodeID:     specAttachment.NodeID,
-			Parameters: copyStringMap(specAttachment.Parameters),
-			Attached:   utilpointer.Bool(false),
+func updateStatusForDesiredAttachingAttachment(attachmentID string, va *longhorn.VolumeAttachment, vol *longhorn.Volume) {
+	if _, ok := va.Status.AttachmentStatuses[attachmentID]; !ok {
+		va.Status.AttachmentStatuses[attachmentID] = &longhorn.AttachmentStatus{
+			ID: attachmentID,
+			// TODO: handle condition update here
 		}
 	}
-	statusAttachment := va.Status.Attachments[specAttachment.ID]
+
+	attachmentSpec := va.Spec.AttachmentSpecs[attachmentID]
+	attachmentStatus := va.Status.AttachmentStatuses[attachmentID]
 
 	// Sync info from the corresponding attachment in va.Spec.Attachments if there are changes
-	if statusAttachment.Type != specAttachment.Type ||
-		statusAttachment.NodeID != specAttachment.NodeID ||
-		!reflect.DeepEqual(statusAttachment.Parameters, specAttachment.Parameters) {
-		// sync info from spec
-		statusAttachment.Type = specAttachment.Type
-		statusAttachment.NodeID = specAttachment.NodeID
-		statusAttachment.Parameters = copyStringMap(specAttachment.Parameters)
-		// reset status info
-		statusAttachment.Attached = utilpointer.Bool(false)
-		statusAttachment.AttachError = nil
-		statusAttachment.DetachError = nil
-	}
+	//if statusAttachment.Type != specAttachment.Type ||
+	//	statusAttachment.NodeID != specAttachment.NodeID ||
+	//	!reflect.DeepEqual(statusAttachment.Parameters, specAttachment.Parameters) {
+	// sync info from spec
+	//statusAttachment.Type = specAttachment.Type
+	//statusAttachment.NodeID = specAttachment.NodeID
+	//statusAttachment.Parameters = copyStringMap(specAttachment.Parameters)
+	//// reset status info
+	//statusAttachment.Attached = utilpointer.Bool(false)
+	//statusAttachment.AttachError = nil
+	//statusAttachment.DetachError = nil
 
-	if vol.Spec.NodeID == "" {
+	// user change the VA.Attachment.Spec to node-2
+	// VA controller set the vol.Spec.NodeID = ""
+	// Volume controller start detach volume -> state become detached
+	// VA controller set Vol.Spec.NodeID to node-2
+	// If vol.Status.State is detached, VA controller VA.Attachment.Status.NodeID = ""; VA.Attachment.Status.Parameter = {}; VA.Attachment.Status.Type = ""
+	// Volume controller start attach -> state becomes attached to node-2
+	// If vol.Status.State is attached, VA controller VA.Attachment.Status.NodeID = node-2; VA.Attachment.Status.Parameter = {xx}; VA.Attachment.Status.Type = "xx"
+	//}
+
+	if va.Status.CurrentNodeID == "" || va.Status.CurrentVolumeState != longhorn.VolumeStateAttached {
+		attachmentStatus.Conditions = types.SetCondition(
+			attachmentStatus.Conditions,
+			longhorn.AttachmentStatusConditionTypeSatisfied,
+			longhorn.ConditionStatusFalse,
+			"",
+			"",
+		)
 		return
 	}
 
-	if vol.Spec.NodeID != statusAttachment.NodeID {
-		statusAttachment.AttachError = &longhorn.VolumeError{
-			// TODO: Do we need to generate TimeStamp here?
-			Message: fmt.Sprintf("cannot attach the volume to node %v because volume has already desired to be attached to node %v", statusAttachment.NodeID, vol.Spec.NodeID),
-		}
+	if attachmentSpec.NodeID != va.Status.CurrentNodeID {
+		attachmentStatus.Conditions = types.SetCondition(
+			attachmentStatus.Conditions,
+			longhorn.AttachmentStatusConditionTypeSatisfied,
+			longhorn.ConditionStatusFalse,
+			"",
+			fmt.Sprintf("cannot satisify this attachment request because the volume already attached to different node %v ", va.Status.CurrentNodeID),
+		)
 		return
 	}
 
-	if vol.Status.CurrentNodeID == statusAttachment.NodeID && vol.Status.State == longhorn.VolumeStateAttached {
-		if !verifyAttachmentParameters(statusAttachment, vol) {
-			statusAttachment.AttachError = &longhorn.VolumeError{
-				// TODO: Do we need to generate TimeStamp here?
-				Message: fmt.Sprintf("volume %v has already attached to node %v with incompatible parameters", vol.Name, vol.Status.CurrentNodeID),
-			}
+	if vol.Status.CurrentNodeID == attachmentSpec.NodeID && va.Status.CurrentVolumeState == longhorn.VolumeStateAttached {
+		if !verifyAttachmentParameters(attachmentSpec.Parameters, vol) {
+			attachmentStatus.Conditions = types.SetCondition(
+				attachmentStatus.Conditions,
+				longhorn.AttachmentStatusConditionTypeSatisfied,
+				longhorn.ConditionStatusFalse,
+				"",
+				fmt.Sprintf("volume %v has already attached to node %v with incompatible parameters", vol.Name, vol.Status.CurrentNodeID),
+			)
 			return
 		}
-		statusAttachment.Attached = utilpointer.Bool(true)
-		statusAttachment.AttachError = nil
 	}
 	return
 }
 
-func verifyAttachmentParameters(attachment *longhorn.Attachment, vol *longhorn.Volume) bool {
-	disableFrontendString, ok := attachment.Parameters["disableFrontend"]
+func verifyAttachmentParameters(parameters map[string]string, vol *longhorn.Volume) bool {
+	disableFrontendString, ok := parameters["disableFrontend"]
 	if !ok || disableFrontendString == longhorn.FalseValue {
 		return vol.Spec.DisableFrontend == false
 	} else if disableFrontendString == longhorn.TrueValue {
@@ -414,14 +444,14 @@ func verifyAttachmentParameters(attachment *longhorn.Attachment, vol *longhorn.V
 	return true
 }
 
-func setAttachmentParameter(attachment *longhorn.Attachment, vol *longhorn.Volume) {
-	disableFrontendString, ok := attachment.Parameters["disableFrontend"]
+func setAttachmentParameter(parameters map[string]string, vol *longhorn.Volume) {
+	disableFrontendString, ok := parameters["disableFrontend"]
 	if !ok || disableFrontendString == longhorn.FalseValue {
 		vol.Spec.DisableFrontend = false
 	} else if disableFrontendString == longhorn.TrueValue {
 		vol.Spec.DisableFrontend = true
 	}
-	vol.Spec.LastAttachedBy = attachment.Parameters["lastAttachedBy"]
+	vol.Spec.LastAttachedBy = parameters["lastAttachedBy"]
 }
 
 func copyStringMap(originalMap map[string]string) map[string]string {
