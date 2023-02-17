@@ -241,16 +241,16 @@ func (m *VolumeManager) Attach(name, nodeID string, disableFrontend bool, attach
 	//	return nil, fmt.Errorf("invalid state %v to attach RWO volume %v", v.Status.State, name)
 	//}
 
-	isVolumeShared := v.Spec.AccessMode == longhorn.AccessModeReadWriteMany && !v.Spec.Migratable
-	//isVolumeDetached := v.Spec.NodeID == ""
-
-	// regular RWX volume
-	if isVolumeShared {
-		// only handle attachment for regular RWX volume in maintenance mode (i.g., DisableFrontend is true)
-		if !disableFrontend {
-			return v, nil
-		}
-	}
+	//isVolumeShared := v.Spec.AccessMode == longhorn.AccessModeReadWriteMany && !v.Spec.Migratable
+	////isVolumeDetached := v.Spec.NodeID == ""
+	//
+	//// regular RWX volume
+	//if isVolumeShared {
+	//	// only handle attachment for regular RWX volume in maintenance mode (i.g., DisableFrontend is true)
+	//	if !disableFrontend {
+	//		return v, nil
+	//	}
+	//}
 
 	// TODO: handle live migration for migratable volume
 
@@ -307,10 +307,10 @@ func (m *VolumeManager) Attach(name, nodeID string, disableFrontend bool, attach
 		return nil, err
 	}
 
-	if va.Spec.Attachments == nil {
-		va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+	if va.Spec.AttachmentSpecs == nil {
+		va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 	}
-	va.Spec.Attachments[attachmentID] = &longhorn.Attachment{
+	va.Spec.AttachmentSpecs[attachmentID] = &longhorn.AttachmentSpec{
 		ID: attachmentID,
 		// TODO: validate attacher type
 		Type:   longhorn.AttacherType(attacherType),
@@ -321,7 +321,7 @@ func (m *VolumeManager) Attach(name, nodeID string, disableFrontend bool, attach
 		},
 	}
 
-	if _, err := m.ds.UpdateLHVolumeAttachmet(va); err != nil {
+	if _, err := m.ds.UpdateLHVolumeAttachment(va); err != nil {
 		return nil, err
 	}
 
@@ -351,8 +351,8 @@ func (m *VolumeManager) Detach(name, attachmentID string, forceDetach bool) (v *
 
 	// if force detach, detach from all nodes by clearing the volumeattachment spec
 	if forceDetach {
-		va.Spec.Attachments = make(map[string]*longhorn.Attachment)
-		if _, err := m.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
+		if _, err := m.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return nil, err
 		}
 		return v, nil
@@ -392,8 +392,8 @@ func (m *VolumeManager) Detach(name, attachmentID string, forceDetach bool) (v *
 	//v.Spec.DisableFrontend = false
 
 	// else remove the ticket from volume attachment spec
-	delete(va.Spec.Attachments, attachmentID)
-	if _, err := m.ds.UpdateLHVolumeAttachmet(va); err != nil {
+	delete(va.Spec.AttachmentSpecs, attachmentID)
+	if _, err := m.ds.UpdateLHVolumeAttachment(va); err != nil {
 		return nil, err
 	}
 

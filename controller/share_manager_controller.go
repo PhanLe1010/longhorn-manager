@@ -393,11 +393,13 @@ func (c *ShareManagerController) isShareManagerRequiredForVolume(volume *longhor
 	}
 
 	// no active workload, there is no need to keep the share manager around
-	hasActiveWorkload := volume.Status.KubernetesStatus.LastPodRefAt == "" && volume.Status.KubernetesStatus.LastPVCRefAt == "" &&
-		len(volume.Status.KubernetesStatus.WorkloadsStatus) > 0
-	if !hasActiveWorkload {
-		return false
-	}
+	//hasActiveWorkload := volume.Status.KubernetesStatus.LastPodRefAt == "" && volume.Status.KubernetesStatus.LastPVCRefAt == "" &&
+	//	len(volume.Status.KubernetesStatus.WorkloadsStatus) > 0
+	//if !hasActiveWorkload {
+	//	return false
+	//}
+
+	//TODO: counter the csi-attacher AD ticket of this volume, if >= 1, return true
 
 	return true
 }
@@ -427,7 +429,7 @@ func (c *ShareManagerController) detachShareManagerVolume(sm *longhorn.ShareMana
 			return
 		}
 
-		if _, err = c.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = c.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
@@ -439,7 +441,7 @@ func (c *ShareManagerController) detachShareManagerVolume(sm *longhorn.ShareMana
 	shouldDetach := !isMaintenanceMode && volume.Spec.AccessMode == longhorn.AccessModeReadWriteMany
 	if shouldDetach {
 		log.Infof("removing volume attachment: %v to detach the volume %v", shareManagerAttachmentID, volume.Name)
-		delete(va.Spec.Attachments, shareManagerAttachmentID)
+		delete(va.Spec.AttachmentSpecs, shareManagerAttachmentID)
 	}
 
 	return nil
@@ -541,32 +543,32 @@ func (c *ShareManagerController) syncShareManagerVolume(sm *longhorn.ShareManage
 			return
 		}
 
-		if _, err = c.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = c.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
 
 	shareManagerAttachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeShareManagerController, sm.Name)
-	if va.Spec.Attachments == nil {
-		va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+	if va.Spec.AttachmentSpecs == nil {
+		va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 	}
 
-	shareManagerAttachment, ok := va.Spec.Attachments[shareManagerAttachmentID]
+	shareManagerAttachment, ok := va.Spec.AttachmentSpecs[shareManagerAttachmentID]
 	if !ok {
 		//create new one
-		shareManagerAttachment = &longhorn.Attachment{
+		shareManagerAttachment = &longhorn.AttachmentSpec{
 			ID:     shareManagerAttachmentID,
 			Type:   longhorn.AttacherTypeShareManagerController,
 			NodeID: sm.Status.OwnerID,
 			Parameters: map[string]string{
-				"disableFrontend": "false",
+				longhorn.AttachmentParameterDisableFrontend: longhorn.FalseValue,
 			},
 		}
 	}
 	if shareManagerAttachment.NodeID != sm.Status.OwnerID {
 		shareManagerAttachment.NodeID = sm.Status.OwnerID
 	}
-	va.Spec.Attachments[shareManagerAttachmentID] = shareManagerAttachment
+	va.Spec.AttachmentSpecs[shareManagerAttachmentID] = shareManagerAttachment
 
 	return nil
 }

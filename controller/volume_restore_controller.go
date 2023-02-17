@@ -180,7 +180,7 @@ func (vrsc *VolumeRestoreController) reconcile(volName string) (err error) {
 			return
 		}
 
-		if _, err = vrsc.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = vrsc.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
@@ -188,27 +188,27 @@ func (vrsc *VolumeRestoreController) reconcile(volName string) (err error) {
 	restoringAttachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeVolumeRestoreController, volName)
 
 	if vol.Status.RestoreRequired {
-		if va.Spec.Attachments == nil {
-			va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+		if va.Spec.AttachmentSpecs == nil {
+			va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 		}
-		restoringAttachment, ok := va.Spec.Attachments[restoringAttachmentID]
+		restoringAttachment, ok := va.Spec.AttachmentSpecs[restoringAttachmentID]
 		if !ok {
 			//create new one
-			restoringAttachment = &longhorn.Attachment{
+			restoringAttachment = &longhorn.AttachmentSpec{
 				ID:     restoringAttachmentID,
 				Type:   longhorn.AttacherTypeVolumeRestoreController,
 				NodeID: vol.Status.OwnerID,
 				Parameters: map[string]string{
-					"disableFrontend": "true",
+					longhorn.AttachmentParameterDisableFrontend: longhorn.TrueValue,
 				},
 			}
 		}
 		if restoringAttachment.NodeID != vol.Status.OwnerID {
 			restoringAttachment.NodeID = vol.Status.OwnerID
 		}
-		va.Spec.Attachments[restoringAttachment.ID] = restoringAttachment
+		va.Spec.AttachmentSpecs[restoringAttachment.ID] = restoringAttachment
 	} else {
-		delete(va.Spec.Attachments, restoringAttachmentID)
+		delete(va.Spec.AttachmentSpecs, restoringAttachmentID)
 	}
 
 	return nil

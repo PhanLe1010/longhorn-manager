@@ -187,7 +187,7 @@ func (vec *VolumeEvictionController) reconcile(volName string) (err error) {
 			return
 		}
 
-		if _, err = vec.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = vec.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
@@ -195,27 +195,27 @@ func (vec *VolumeEvictionController) reconcile(volName string) (err error) {
 	evictingAttachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeVolumeEvictionController, volName)
 
 	if hasReplicaEvictionRequested(replicas) {
-		if va.Spec.Attachments == nil {
-			va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+		if va.Spec.AttachmentSpecs == nil {
+			va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 		}
-		evictingAttachment, ok := va.Spec.Attachments[evictingAttachmentID]
+		evictingAttachment, ok := va.Spec.AttachmentSpecs[evictingAttachmentID]
 		if !ok {
 			//create new one
-			evictingAttachment = &longhorn.Attachment{
+			evictingAttachment = &longhorn.AttachmentSpec{
 				ID:     evictingAttachmentID,
 				Type:   longhorn.AttacherTypeVolumeEvictionController,
 				NodeID: vol.Status.OwnerID,
 				Parameters: map[string]string{
-					"disableFrontend": longhorn.AnyValue,
+					longhorn.AttachmentParameterDisableFrontend: longhorn.AnyValue,
 				},
 			}
 		}
 		if evictingAttachment.NodeID != vol.Status.OwnerID {
 			evictingAttachment.NodeID = vol.Status.OwnerID
 		}
-		va.Spec.Attachments[evictingAttachment.ID] = evictingAttachment
+		va.Spec.AttachmentSpecs[evictingAttachment.ID] = evictingAttachment
 	} else {
-		delete(va.Spec.Attachments, evictingAttachmentID)
+		delete(va.Spec.AttachmentSpecs, evictingAttachmentID)
 	}
 
 	return nil

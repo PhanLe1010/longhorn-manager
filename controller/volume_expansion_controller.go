@@ -180,7 +180,7 @@ func (vec *VolumeExpansionController) reconcile(volName string) (err error) {
 			return
 		}
 
-		if _, err = vec.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = vec.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
@@ -188,27 +188,27 @@ func (vec *VolumeExpansionController) reconcile(volName string) (err error) {
 	expandingAttachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeVolumeExpansionController, volName)
 
 	if vol.Status.ExpansionRequired {
-		if va.Spec.Attachments == nil {
-			va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+		if va.Spec.AttachmentSpecs == nil {
+			va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 		}
-		expandingAttachment, ok := va.Spec.Attachments[expandingAttachmentID]
+		expandingAttachment, ok := va.Spec.AttachmentSpecs[expandingAttachmentID]
 		if !ok {
 			//create new one
-			expandingAttachment = &longhorn.Attachment{
+			expandingAttachment = &longhorn.AttachmentSpec{
 				ID:     expandingAttachmentID,
 				Type:   longhorn.AttacherTypeVolumeExpansionController,
 				NodeID: vol.Status.OwnerID,
 				Parameters: map[string]string{
-					"disableFrontend": "true",
+					longhorn.AttachmentParameterDisableFrontend: longhorn.AnyValue,
 				},
 			}
 		}
 		if expandingAttachment.NodeID != vol.Status.OwnerID {
 			expandingAttachment.NodeID = vol.Status.OwnerID
 		}
-		va.Spec.Attachments[expandingAttachment.ID] = expandingAttachment
+		va.Spec.AttachmentSpecs[expandingAttachment.ID] = expandingAttachment
 	} else {
-		delete(va.Spec.Attachments, expandingAttachmentID)
+		delete(va.Spec.AttachmentSpecs, expandingAttachmentID)
 	}
 
 	return nil

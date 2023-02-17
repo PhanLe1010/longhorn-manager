@@ -439,9 +439,9 @@ func (sc *SnapshotController) handleAttachmentDeletion(snap *longhorn.Snapshot) 
 
 	attachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeSnapshotController, snap.Name)
 
-	if _, ok := va.Spec.Attachments[attachmentID]; ok {
-		delete(va.Spec.Attachments, attachmentID)
-		if _, err = sc.ds.UpdateLHVolumeAttachmet(va); err != nil {
+	if _, ok := va.Spec.AttachmentSpecs[attachmentID]; ok {
+		delete(va.Spec.AttachmentSpecs, attachmentID)
+		if _, err = sc.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return err
 		}
 	}
@@ -474,33 +474,33 @@ func (sc *SnapshotController) handleAttachmentCreation(snap *longhorn.Snapshot) 
 			return
 		}
 
-		if _, err = sc.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = sc.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
 
-	if va.Spec.Attachments == nil {
-		va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+	if va.Spec.AttachmentSpecs == nil {
+		va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 	}
 
 	attachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeSnapshotController, snap.Name)
 
-	attachment, ok := va.Spec.Attachments[attachmentID]
+	attachment, ok := va.Spec.AttachmentSpecs[attachmentID]
 	if !ok {
 		//create new one
-		attachment = &longhorn.Attachment{
+		attachment = &longhorn.AttachmentSpec{
 			ID:     attachmentID,
 			Type:   longhorn.AttacherTypeSnapshotController,
 			NodeID: vol.Status.OwnerID,
 			Parameters: map[string]string{
-				"disableFrontend": longhorn.AnyValue,
+				longhorn.AttachmentParameterDisableFrontend: longhorn.AnyValue,
 			},
 		}
 	}
 	if attachment.NodeID != vol.Status.OwnerID {
 		attachment.NodeID = vol.Status.OwnerID
 	}
-	va.Spec.Attachments[attachment.ID] = attachment
+	va.Spec.AttachmentSpecs[attachment.ID] = attachment
 
 	return nil
 }

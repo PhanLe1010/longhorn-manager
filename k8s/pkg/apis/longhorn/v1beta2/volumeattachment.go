@@ -22,14 +22,25 @@ type AttachmentSpec struct {
 	//AttachError *VolumeError `json:"attachError,omitempty"`
 	//// +optional
 	//DetachError *VolumeError `json:"detachError,omitempty"`
+	// A sequence number representing a specific generation of the desired state.
+	// Populated by the system. Read-only.
+	// +optional
+	Generation int64 `json:"generation"`
 }
 
 type AttachmentStatus struct {
 	// The unique ID of this attachment. Used to differentiate different attachments of the same volume.
 	// +optional
 	ID string `json:"id"`
+	// Indicate whether this attachment ticket has been satisfied
+	Satisfied bool `json:"satisfied"`
+	// Record any error when trying to fulfill this attachment
 	// +nullable
 	Conditions []Condition `json:"conditions"`
+	// A sequence number representing a specific generation of the desired state.
+	// Populated by the system. Read-only.
+	// +optional
+	Generation int64 `json:"generation"`
 }
 
 // VolumeError captures an error encountered during a volume operation.
@@ -133,6 +144,22 @@ func GetAttachmentID(attacherType AttacherType, id string) string {
 	return retID
 }
 
+func IsAttachmentSatisfied(attachmentID string, va *VolumeAttachment) bool {
+	if va == nil {
+		return false
+	}
+	attachmentSpec, ok := va.Spec.AttachmentSpecs[attachmentID]
+	if !ok {
+		return false
+	}
+	attachmentStatus, ok := va.Status.AttachmentStatuses[attachmentID]
+	if !ok {
+		return false
+	}
+
+	return attachmentSpec.Generation == attachmentStatus.Generation && attachmentStatus.Satisfied
+}
+
 // VolumeAttachmentSpec defines the desired state of Longhorn VolumeAttachment
 type VolumeAttachmentSpec struct {
 	// +optional
@@ -144,12 +171,12 @@ type VolumeAttachmentSpec struct {
 
 // VolumeAttachmentStatus defines the observed state of Longhorn VolumeAttachment
 type VolumeAttachmentStatus struct {
-	// The current state of the volume. Synced from volume.status.state
-	CurrentVolumeState VolumeState `json:"currentVolumeState"`
-	// The node that volume is currently attached to. Synced from volume.status.currentNodeID
-	CurrentNodeID string `json:"currentNodeID"`
-	// The current attachment parameters of the volume. Synced from volume.Spec
-	Parameters map[string]string `json:"parameters"`
+	//// The current state of the volume. Synced from volume.status.state
+	//CurrentVolumeState VolumeState `json:"currentVolumeState"`
+	//// The node that volume is currently attached to. Synced from volume.status.currentNodeID
+	//CurrentNodeID string `json:"currentNodeID"`
+	//// The current attachment parameters of the volume. Synced from volume.Spec
+	//Parameters map[string]string `json:"parameters"`
 	// +optional
 	AttachmentStatuses map[string]*AttachmentStatus `json:"attachmentStatuses"`
 }

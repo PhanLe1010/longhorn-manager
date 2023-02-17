@@ -215,7 +215,6 @@ type VolumeSpec struct {
 	DisableFrontend bool `json:"disableFrontend"`
 	// +optional
 	RevisionCounterDisabled bool `json:"revisionCounterDisabled"`
-	// Deprecated
 	// +optional
 	UnmapMarkSnapChainRemoved UnmapMarkSnapChainRemoved `json:"unmapMarkSnapChainRemoved"`
 	// +optional

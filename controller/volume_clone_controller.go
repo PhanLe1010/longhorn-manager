@@ -201,7 +201,7 @@ func (vcc *VolumeCloneController) reconcile(volName string) (err error) {
 			return
 		}
 
-		if _, err = vcc.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = vcc.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
@@ -229,10 +229,10 @@ func (vcc *VolumeCloneController) reconcile(volName string) (err error) {
 	}
 
 	// Delete unexpected attachments
-	for attachmentID, attachment := range va.Spec.Attachments {
+	for attachmentID, attachment := range va.Spec.AttachmentSpecs {
 		if attachment.Type == longhorn.AttacherTypeVolumeCloneController {
 			if _, ok := expectedAttachments[attachmentID]; !ok {
-				delete(va.Spec.Attachments, attachmentID)
+				delete(va.Spec.AttachmentSpecs, attachmentID)
 			}
 		}
 	}
@@ -241,26 +241,26 @@ func (vcc *VolumeCloneController) reconcile(volName string) (err error) {
 }
 
 func (vcc *VolumeCloneController) createOrUpdateAttachment(attachmentID string, nodeID string, va *longhorn.VolumeAttachment, disableFrontend string) {
-	if va.Spec.Attachments == nil {
-		va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+	if va.Spec.AttachmentSpecs == nil {
+		va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 	}
 
-	attachment, ok := va.Spec.Attachments[attachmentID]
+	attachment, ok := va.Spec.AttachmentSpecs[attachmentID]
 	if !ok {
 		// Create new one
-		attachment = &longhorn.Attachment{
+		attachment = &longhorn.AttachmentSpec{
 			ID:     attachmentID,
 			Type:   longhorn.AttacherTypeVolumeCloneController,
 			NodeID: nodeID,
 			Parameters: map[string]string{
-				"disableFrontend": disableFrontend,
+				longhorn.AttachmentParameterDisableFrontend: disableFrontend,
 			},
 		}
 	}
 	if attachment.NodeID != nodeID {
 		attachment.NodeID = nodeID
 	}
-	va.Spec.Attachments[attachment.ID] = attachment
+	va.Spec.AttachmentSpecs[attachment.ID] = attachment
 }
 
 func (vcc *VolumeCloneController) isResponsibleFor(vol *longhorn.Volume) bool {

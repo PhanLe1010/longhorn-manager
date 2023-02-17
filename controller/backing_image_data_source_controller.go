@@ -542,9 +542,9 @@ func (c *BackingImageDataSourceController) handleAttachmentDeletion(bids *longho
 
 	attachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeBackingImageDataSourceController, bids.Name)
 
-	if _, ok := va.Spec.Attachments[attachmentID]; ok {
-		delete(va.Spec.Attachments, attachmentID)
-		if _, err = c.ds.UpdateLHVolumeAttachmet(va); err != nil {
+	if _, ok := va.Spec.AttachmentSpecs[attachmentID]; ok {
+		delete(va.Spec.AttachmentSpecs, attachmentID)
+		if _, err = c.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return err
 		}
 	}
@@ -578,33 +578,33 @@ func (c *BackingImageDataSourceController) handleAttachmentCreation(bids *longho
 			return
 		}
 
-		if _, err = c.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = c.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
 
-	if va.Spec.Attachments == nil {
-		va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+	if va.Spec.AttachmentSpecs == nil {
+		va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 	}
 
 	attachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeBackingImageDataSourceController, bids.Name)
 
-	attachment, ok := va.Spec.Attachments[attachmentID]
+	attachment, ok := va.Spec.AttachmentSpecs[attachmentID]
 	if !ok {
 		//create new one
-		attachment = &longhorn.Attachment{
+		attachment = &longhorn.AttachmentSpec{
 			ID:     attachmentID,
 			Type:   longhorn.AttacherTypeBackingImageDataSourceController,
 			NodeID: vol.Status.OwnerID,
 			Parameters: map[string]string{
-				"disableFrontend": longhorn.AnyValue,
+				longhorn.AttachmentParameterDisableFrontend: longhorn.AnyValue,
 			},
 		}
 	}
 	if attachment.NodeID != vol.Status.OwnerID {
 		attachment.NodeID = vol.Status.OwnerID
 	}
-	va.Spec.Attachments[attachment.ID] = attachment
+	va.Spec.AttachmentSpecs[attachment.ID] = attachment
 
 	return nil
 }

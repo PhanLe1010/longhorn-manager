@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	utilpointer "k8s.io/utils/pointer"
 	"reflect"
 	"strconv"
 	"strings"
@@ -435,9 +434,9 @@ func (bc *BackupController) handleAttachmentDeletion(backup *longhorn.Backup, vo
 
 	attachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeBackupController, backup.Name)
 
-	if _, ok := va.Spec.Attachments[attachmentID]; ok {
-		delete(va.Spec.Attachments, attachmentID)
-		if _, err = bc.ds.UpdateLHVolumeAttachmet(va); err != nil {
+	if _, ok := va.Spec.AttachmentSpecs[attachmentID]; ok {
+		delete(va.Spec.AttachmentSpecs, attachmentID)
+		if _, err = bc.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return err
 		}
 	}
@@ -470,21 +469,21 @@ func (bc *BackupController) handleAttachmentCreation(backup *longhorn.Backup, vo
 			return
 		}
 
-		if _, err = bc.ds.UpdateLHVolumeAttachmet(va); err != nil {
+		if _, err = bc.ds.UpdateLHVolumeAttachment(va); err != nil {
 			return
 		}
 	}()
 
-	if va.Spec.Attachments == nil {
-		va.Spec.Attachments = make(map[string]*longhorn.Attachment)
+	if va.Spec.AttachmentSpecs == nil {
+		va.Spec.AttachmentSpecs = make(map[string]*longhorn.AttachmentSpec)
 	}
 
 	attachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeBackupController, backup.Name)
 
-	attachment, ok := va.Spec.Attachments[attachmentID]
+	attachment, ok := va.Spec.AttachmentSpecs[attachmentID]
 	if !ok {
 		//create new one
-		attachment = &longhorn.Attachment{
+		attachment = &longhorn.AttachmentSpec{
 			ID:     attachmentID,
 			Type:   longhorn.AttacherTypeBackupController,
 			NodeID: vol.Status.OwnerID,
@@ -496,12 +495,12 @@ func (bc *BackupController) handleAttachmentCreation(backup *longhorn.Backup, vo
 	if attachment.NodeID != vol.Status.OwnerID {
 		attachment.NodeID = vol.Status.OwnerID
 	}
-	va.Spec.Attachments[attachment.ID] = attachment
+	va.Spec.AttachmentSpecs[attachment.ID] = attachment
 
 	return nil
 }
 
-// VerifyAttachment check and create attachment so that the source volume is attached if needed
+// VerifyAttachment check the volume attachment ticket for this backup is satisified
 func (bc *BackupController) VerifyAttachment(backup *longhorn.Backup, volumeName string) (bool, error) {
 	var err error
 	defer func() {
@@ -520,13 +519,7 @@ func (bc *BackupController) VerifyAttachment(backup *longhorn.Backup, volumeName
 
 	attachmentID := longhorn.GetAttachmentID(longhorn.AttacherTypeBackupController, backup.Name)
 
-	attachment, ok := va.Status.Attachments[attachmentID]
-
-	if !ok {
-		return false, nil
-	}
-
-	return utilpointer.BoolDeref(attachment.Attached, false), nil
+	return longhorn.IsAttachmentSatisfied(attachmentID, va), nil
 }
 
 func (bc *BackupController) isResponsibleFor(b *longhorn.Backup, defaultEngineImage string) (bool, error) {

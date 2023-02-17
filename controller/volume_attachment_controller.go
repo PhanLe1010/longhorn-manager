@@ -18,7 +18,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller"
 	"reflect"
-	"strconv"
 	"time"
 )
 
@@ -222,15 +221,15 @@ func (vac *VolumeAttachmentController) reconcile(vaName string) (err error) {
 
 		}
 		if !reflect.DeepEqual(existingVA.Status, va.Status) {
-			if _, err = vac.ds.UpdateLHVolumeAttachmetStatus(va); err != nil {
+			if _, err = vac.ds.UpdateLHVolumeAttachmentStatus(va); err != nil {
 				return
 			}
 		}
 		return
 	}()
 
-	// TODO: Make a comment that the desire state is recored in VA.Spec
-	// The current state is recored inside volume CR
+	// Note that in this controller the desire state is recorded in VA.Spec
+	// and the current state of the world is recorded inside volume CR
 
 	vac.handleVolumeDetachment(va, vol)
 
@@ -264,6 +263,7 @@ func shouldDoDetach(va *longhorn.VolumeAttachment, vol *longhorn.Volume) bool {
 		return true
 	}
 	for _, attachmentSpec := range va.Spec.AttachmentSpecs {
+		// TODO: consider handle ignore the csi-attacher ticket for RWX volume
 		// Found one attachmentSpec that is still requesting volume to attach to the current node
 		if attachmentSpec.NodeID == vol.Spec.NodeID && verifyAttachmentParameters(attachmentSpec.Parameters, vol) {
 			return false
@@ -298,6 +298,7 @@ func (vac *VolumeAttachmentController) handleVolumeAttachment(va *longhorn.Volum
 }
 
 func selectAttachmentSpecToAttach(va *longhorn.VolumeAttachment) *longhorn.AttachmentSpec {
+	// TODO: consider handle ignore the csi-attacher ticket for RWX volume
 	if len(va.Spec.AttachmentSpecs) == 0 {
 		return nil
 	}
@@ -333,12 +334,12 @@ func selectAttachmentSpecToAttach(va *longhorn.VolumeAttachment) *longhorn.Attac
 
 func (vac *VolumeAttachmentController) handleVAStatusUpdate(va *longhorn.VolumeAttachment, vol *longhorn.Volume) error {
 	// sync with volume resource
-	va.Status.CurrentNodeID = vol.Status.CurrentNodeID
-	va.Status.CurrentVolumeState = vol.Status.State
-	va.Status.Parameters = map[string]string{
-		longhorn.AttachmentParameterDisableFrontend: strconv.FormatBool(vol.Spec.DisableFrontend),
-		longhorn.AttachmentParameterLastAttachedBy:  vol.Spec.LastAttachedBy,
-	}
+	//va.Status.CurrentNodeID = vol.Status.CurrentNodeID
+	//va.Status.CurrentVolumeState = vol.Status.State
+	//va.Status.Parameters = map[string]string{
+	//	longhorn.AttachmentParameterDisableFrontend: strconv.FormatBool(vol.Spec.DisableFrontend),
+	//	longhorn.AttachmentParameterLastAttachedBy:  vol.Spec.LastAttachedBy,
+	//}
 
 	// initialize the va.Status.Attachments map if needed
 	if va.Status.AttachmentStatuses == nil {
@@ -364,16 +365,23 @@ func updateStatusForDesiredDetachingAttachment(attachmentID string, va *longhorn
 	delete(va.Status.AttachmentStatuses, attachmentID)
 }
 
-func updateStatusForDesiredAttachingAttachment(attachmentID string, va *longhorn.VolumeAttachment, vol *longhorn.Volume) {
+func updateStatusForDesiredAttachingAttachment(attachmentID string, va *longhorn.VolumeAttachment, vol *longhorn.Volume) error {
 	if _, ok := va.Status.AttachmentStatuses[attachmentID]; !ok {
 		va.Status.AttachmentStatuses[attachmentID] = &longhorn.AttachmentStatus{
 			ID: attachmentID,
-			// TODO: handle condition update here
+			// TODO: handle condition initialization here
 		}
 	}
 
-	attachmentSpec := va.Spec.AttachmentSpecs[attachmentID]
+	attachmentSpec, ok := va.Spec.AttachmentSpecs[attachmentID]
+	if !ok {
+		return fmt.Errorf("updateStatusForDesiredAttachingAttachment: missing the attachment with id %v in the va.Spec.AttachmentSpecs", attachmentID)
+	}
 	attachmentStatus := va.Status.AttachmentStatuses[attachmentID]
+
+	defer func() {
+		attachmentStatus.Generation = attachmentSpec.Generation
+	}()
 
 	// Sync info from the corresponding attachment in va.Spec.Attachments if there are changes
 	//if statusAttachment.Type != specAttachment.Type ||
@@ -397,30 +405,39 @@ func updateStatusForDesiredAttachingAttachment(attachmentID string, va *longhorn
 	// If vol.Status.State is attached, VA controller VA.Attachment.Status.NodeID = node-2; VA.Attachment.Status.Parameter = {xx}; VA.Attachment.Status.Type = "xx"
 	//}
 
-	if va.Status.CurrentNodeID == "" || va.Status.CurrentVolumeState != longhorn.VolumeStateAttached {
+	// TODO: consider handle the csi-attacher ticket for RWX volume differently
+
+	if vol.Status.CurrentNodeID == "" || vol.Status.State != longhorn.VolumeStateAttached {
+		attachmentStatus.Satisfied = false
+		attachmentStatus.Conditions = types.SetCondition(
+			attachmentStatus.Conditions,
+			longhorn.AttachmentStatusConditionTypeSatisfied,
+			longhorn.ConditionStatusFalse,
+			"", // reason should be a code indicating the error type
+			"",
+		)
+
+		// TODO: check if the engine image is ready on the node
+		// check if the node is down
+		// to set the condition for the client to consume
+		return nil
+	}
+
+	if attachmentSpec.NodeID != vol.Status.CurrentNodeID {
+		attachmentStatus.Satisfied = false
 		attachmentStatus.Conditions = types.SetCondition(
 			attachmentStatus.Conditions,
 			longhorn.AttachmentStatusConditionTypeSatisfied,
 			longhorn.ConditionStatusFalse,
 			"",
-			"",
+			fmt.Sprintf("cannot satisify this attachment request because the volume already attached to different node %v ", vol.Status.CurrentNodeID),
 		)
-		return
+		return nil
 	}
 
-	if attachmentSpec.NodeID != va.Status.CurrentNodeID {
-		attachmentStatus.Conditions = types.SetCondition(
-			attachmentStatus.Conditions,
-			longhorn.AttachmentStatusConditionTypeSatisfied,
-			longhorn.ConditionStatusFalse,
-			"",
-			fmt.Sprintf("cannot satisify this attachment request because the volume already attached to different node %v ", va.Status.CurrentNodeID),
-		)
-		return
-	}
-
-	if vol.Status.CurrentNodeID == attachmentSpec.NodeID && va.Status.CurrentVolumeState == longhorn.VolumeStateAttached {
+	if vol.Status.CurrentNodeID == attachmentSpec.NodeID && vol.Status.State == longhorn.VolumeStateAttached {
 		if !verifyAttachmentParameters(attachmentSpec.Parameters, vol) {
+			attachmentStatus.Satisfied = false
 			attachmentStatus.Conditions = types.SetCondition(
 				attachmentStatus.Conditions,
 				longhorn.AttachmentStatusConditionTypeSatisfied,
@@ -428,10 +445,18 @@ func updateStatusForDesiredAttachingAttachment(attachmentID string, va *longhorn
 				"",
 				fmt.Sprintf("volume %v has already attached to node %v with incompatible parameters", vol.Name, vol.Status.CurrentNodeID),
 			)
-			return
+			return nil
 		}
+		attachmentStatus.Satisfied = true
+		attachmentStatus.Conditions = types.SetCondition(
+			attachmentStatus.Conditions,
+			longhorn.AttachmentStatusConditionTypeSatisfied,
+			longhorn.ConditionStatusTrue,
+			"",
+			"",
+		)
 	}
-	return
+	return nil
 }
 
 func verifyAttachmentParameters(parameters map[string]string, vol *longhorn.Volume) bool {

@@ -442,21 +442,17 @@ func (cs *ControllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 
 	return cs.publishVolume(volume, nodeID, attachmentID, func() error {
 		checkVolumePublished := func(vol *longhornclient.Volume) bool {
-			if isVolumeShareAvailable(vol) {
-				return true
-			}
-			attachment, ok := vol.VolumeAttachment.VolumeAttachmentStatus[attachmentID]
-			if !ok {
-				return false
-			}
-			return attachment.AttachError == "" && attachment.Attached && isEngineOnNodeAvailable(vol, nodeID)
+			attachment, ok := vol.VolumeAttachment.Attachments[attachmentID]
+			return ok && attachment.Satisfied
 		}
 		if !cs.waitForVolumeState(volumeID, "volume published", checkVolumePublished, false, false) {
 			// check if there is error while attaching
 			if existVol, err := cs.apiClient.Volume.ById(volumeID); err == nil && existVol != nil {
-				if attachment, ok := existVol.VolumeAttachment.VolumeAttachmentStatus[attachmentID]; ok && attachment.AttachError != "" {
-					return status.Errorf(codes.Internal, "volume %v failed to attach to node %v with attachmentID %v: %v", volumeID, nodeID, attachmentID, attachment.AttachError)
-				}
+				// TODO: check the attachment.condition and report if there is any error
+				//if attachment, ok := existVol.VolumeAttachment.Attachments[attachmentID]; ok  {
+				//	types.GetCondition(attachment.Conditions, longhorn.OrphanConditionTypeDataCleanable)
+				//	return status.Errorf(codes.Internal, "volume %v failed to attach to node %v with attachmentID %v: %v", volumeID, nodeID, attachmentID, attachment.AttachError)
+				//}
 			}
 			return status.Errorf(codes.DeadlineExceeded, "volume %v failed to attach to node %v with attachmentID %v", volumeID, nodeID, attachmentID)
 		}
@@ -542,7 +538,7 @@ func (cs *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 			if isSharedVolume {
 				return true
 			}
-			_, ok := vol.VolumeAttachment.VolumeAttachmentStatus[attachmentID]
+			_, ok := vol.VolumeAttachment.Attachments[attachmentID]
 			return !ok
 		}
 
