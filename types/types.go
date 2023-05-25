@@ -20,6 +20,7 @@ import (
 const (
 	LonghornKindNode                = "Node"
 	LonghornKindVolume              = "Volume"
+	LonghornKindVolumeAttachment    = "VolumeAttachment"
 	LonghornKindEngine              = "Engine"
 	LonghornKindReplica             = "Replica"
 	LonghornKindBackup              = "Backup"

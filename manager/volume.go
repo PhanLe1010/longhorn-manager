@@ -265,7 +265,7 @@ func (m *VolumeManager) Attach(name, nodeID string, disableFrontend bool, attach
 
 // Detach will handle regular detachment as well as volume migration confirmation/rollback
 // if nodeID is not specified, the volume will be detached from all nodes
-func (m *VolumeManager) Detach(name, attachmentID string, forceDetach bool) (v *longhorn.Volume, err error) {
+func (m *VolumeManager) Detach(name, attachmentID, hostID string, forceDetach bool) (v *longhorn.Volume, err error) {
 	defer func() {
 		err = errors.Wrapf(err, "unable to detach volume %v", name)
 	}()
@@ -328,6 +328,8 @@ func (m *VolumeManager) Detach(name, attachmentID string, forceDetach bool) (v *
 
 	// else remove the ticket from volume attachment spec
 	delete(va.Spec.AttachmentTickets, attachmentID)
+	// cleanup the attachment ticket created by longhorn-upgrade process if existed
+	delete(va.Spec.AttachmentTickets, longhorn.GetAttachmentTicketID(longhorn.AttacherTypeLonghornUpgrader, hostID))
 	if _, err := m.ds.UpdateLHVolumeAttachment(va); err != nil {
 		return nil, err
 	}

@@ -248,6 +248,7 @@ type AttachInput struct {
 
 type DetachInput struct {
 	AttachmentID string `json:"attachmentID"`
+	HostID       string `json:"hostId"`
 	ForceDetach  bool   `json:"forceDetach"`
 }
 
