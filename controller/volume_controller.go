@@ -1504,11 +1504,14 @@ func (c *VolumeController) reconcileAttachDetachStateMachine(v *longhorn.Volume,
 func (c *VolumeController) reconcileVolumeCreation(v *longhorn.Volume, e *longhorn.Engine, es map[string]*longhorn.Engine, rs map[string]*longhorn.Replica) (bool, *longhorn.Engine, error) {
 	// first time engine creation etc
 
+	log := getLoggerForVolume(c.logger, v)
+
 	var isNewVolume bool
 	var err error
 
 	if len(es) == 0 {
 		// first time creation
+		log.Infof("============> first time creation engine")
 		e, err = c.createEngine(v, true)
 		if err != nil {
 			return false, e, err
@@ -1519,6 +1522,7 @@ func (c *VolumeController) reconcileVolumeCreation(v *longhorn.Volume, e *longho
 
 	if len(rs) == 0 {
 		// first time creation
+		log.Infof("============> first time creation replica")
 		if err = c.replenishReplicas(v, e, rs, ""); err != nil {
 			return false, e, err
 		}
@@ -3333,6 +3337,8 @@ func (c *VolumeController) createEngine(v *longhorn.Volume, isNewEngine bool) (*
 	if isNewEngine {
 		engine.Spec.Active = true
 	}
+
+	log.Infof("============> creating engine %v with isNewEngine %v", engine.Name, isNewEngine)
 
 	return c.ds.CreateEngine(engine)
 }
