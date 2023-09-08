@@ -323,6 +323,10 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 		if err != nil {
 			return
 		}
+		if !backup.Status.LastSyncedAt.IsZero() || backup.Spec.SnapshotName == "" {
+			err = bc.handleAttachmentTicketDeletion(backup, backupVolumeName)
+			return
+		}
 		if reflect.DeepEqual(existingBackup.Status, backup.Status) {
 			return
 		}
@@ -337,10 +341,6 @@ func (bc *BackupController) reconcile(backupName string) (err error) {
 				log.Warnf("failed to sync Backup Volume: %v", backupVolumeName)
 				return
 			}
-		}
-		if !backup.Status.LastSyncedAt.IsZero() || backup.Spec.SnapshotName == "" {
-			err = bc.handleAttachmentTicketDeletion(backup, backupVolumeName)
-			return
 		}
 	}()
 
