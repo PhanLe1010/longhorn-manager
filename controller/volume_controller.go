@@ -46,6 +46,8 @@ var (
 	RetryCounts   = 20
 
 	AutoSalvageTimeLimit = 1 * time.Minute
+
+	NumberOfDeletion = 0
 )
 
 const (
@@ -3499,6 +3501,13 @@ func (vc *VolumeController) processMigration(v *longhorn.Volume, es map[string]*
 		for i := range extras {
 			e := extras[i]
 			if e.DeletionTimestamp == nil {
+				log.Infof("===================> NumberOfDeletion %v", NumberOfDeletion)
+				if NumberOfDeletion == 0 {
+					NumberOfDeletion += 1
+					log.Infof("===================> manufacturing the first deletion error here ")
+					return fmt.Errorf("===================> manufacturing the first deletion error here")
+				}
+
 				if err := vc.deleteEngine(e, es); err != nil {
 					return err
 				}
