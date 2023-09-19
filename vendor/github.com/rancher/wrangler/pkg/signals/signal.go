@@ -17,6 +17,9 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 var onlyOneSignalHandler = make(chan struct{})
@@ -42,10 +45,13 @@ func SetupSignalContext() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	signal.Notify(shutdownHandler, shutdownSignals...)
 	go func() {
-		<-shutdownHandler
+		sig := <-shutdownHandler
+		sleepingDuration := 26 * time.Second
+		logrus.Infof("Receive %v to exit. Sleeping for %v seconds", sig, sleepingDuration)
+		time.Sleep(sleepingDuration)
 		cancel()
-		<-shutdownHandler
-		os.Exit(1) // second signal. Exit directly.
+		//<-shutdownHandler
+		//os.Exit(1) // second signal. Exit directly.
 	}()
 
 	return ctx

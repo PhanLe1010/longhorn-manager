@@ -356,12 +356,14 @@ func ParseLabels(labels []string) (map[string]string, error) {
 	return result, nil
 }
 
-func RegisterShutdownChannel(done chan struct{}) {
+func RegisterShutdownChannel(done chan struct{}, index int) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-		logrus.Infof("Receive %v to exit", sig)
+		sleepingDuration := time.Duration(index) * 10 * time.Second
+		logrus.Infof("Receive %v to exit. Sleeping for %v seconds", sig, sleepingDuration)
+		time.Sleep(sleepingDuration)
 		close(done)
 	}()
 }

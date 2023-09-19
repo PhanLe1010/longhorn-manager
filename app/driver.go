@@ -313,7 +313,7 @@ func deployCSIDriver(kubeClient *clientset.Clientset, lhClient *lhclientset.Clie
 	logrus.Debug("CSI deployment done")
 
 	done := make(chan struct{})
-	util.RegisterShutdownChannel(done)
+	util.RegisterShutdownChannel(done, 0)
 
 	<-done
 

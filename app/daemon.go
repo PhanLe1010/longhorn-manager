@@ -2,8 +2,11 @@ package app
 
 import (
 	"fmt"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 	"net/http"
 	"os"
+	"sort"
+	"time"
 
 	_ "net/http/pprof" // for runtime profiling
 
@@ -201,7 +204,37 @@ func startManager(c *cli.Context) error {
 		}
 	}()
 
-	util.RegisterShutdownChannel(done)
+	var nodes []*longhorn.Node
+	for i := 0; i < 15; i++ {
+		nodes, err = ds.ListNodesRO()
+		if err != nil {
+			return err
+		}
+		if len(nodes) == 3 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	if len(nodes) != 3 {
+		return fmt.Errorf("there must be 3 nodes instead of %v", len(nodes))
+	}
+
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].Name < nodes[j].Name
+	})
+
+	index := 0
+	for i, node := range nodes {
+		if currentNodeID == node.Name {
+			index = i
+			break
+		}
+	}
+
+	logrus.Infof("The current node is %v, with index is %v", currentNodeID, index)
+
+	util.RegisterShutdownChannel(done, index)
 	<-done
 	return nil
 }
