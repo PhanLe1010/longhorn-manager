@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"reflect"
 	"sort"
 	"strings"
@@ -431,8 +432,12 @@ func (c *VolumeController) syncVolume(key string) (err error) {
 			// Make sure that we don't update condition's LastTransitionTime if the condition's values hasn't changed
 			handleConditionLastTransitionTime(&existingVolume.Status, &volume.Status)
 			if !reflect.DeepEqual(existingVolume.Status, volume.Status) {
-				// reuse err
-				_, err = c.ds.UpdateVolumeStatus(volume)
+				firstEngineCreationError := (err != nil) && strings.Contains(err.Error(), "artificially make verifyCreation errored")
+				if !firstEngineCreationError {
+					_, err = c.ds.UpdateVolumeStatus(volume)
+				} else {
+					err = apierrors.NewConflict(schema.GroupResource{}, "", fmt.Errorf("artificially make volume status update conflict error"))
+				}
 			}
 		}
 		// requeue if it's conflict

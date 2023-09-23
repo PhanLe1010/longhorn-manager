@@ -1046,7 +1046,8 @@ func (s *DataStore) CreateEngine(e *longhorn.Engine) (*longhorn.Engine, error) {
 	}
 
 	obj, err := verifyCreation(e.Name, "engine", func(name string) (runtime.Object, error) {
-		return s.GetEngineRO(name)
+		return nil, fmt.Errorf("============================> artificially make verifyCreation errored")
+		//return s.GetEngineRO(name)
 	})
 	if err != nil {
 		return nil, err
@@ -3044,6 +3045,7 @@ func (s *DataStore) UpdateInstanceManagerStatus(im *longhorn.InstanceManager) (*
 func verifyCreation(name, kind string, getMethod func(name string) (runtime.Object, error)) (runtime.Object, error) {
 	// WORKAROUND: The immedidate read after object's creation can fail.
 	// See https://github.com/longhorn/longhorn/issues/133
+	logrus.Infof("============================> enter verifyCreation for %v", name)
 	var (
 		ret runtime.Object
 		err error

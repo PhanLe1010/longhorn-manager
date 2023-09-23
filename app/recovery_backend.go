@@ -28,9 +28,9 @@ func startRecoveryBackend(ctx context.Context, serviceAccount, kubeconfigPath st
 		return err
 	}
 
-	if err := client.Start(ctx); err != nil {
-		return err
-	}
+	//if err := client.Start(ctx); err != nil {
+	//	return err
+	//}
 
 	s := server.New(namespace, client.Datastore)
 	router := http.Handler(server.NewRouter(s))
