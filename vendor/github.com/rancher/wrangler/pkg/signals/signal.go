@@ -17,6 +17,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"time"
+	"github.com/sirupsen/logrus"
 )
 
 var onlyOneSignalHandler = make(chan struct{})
@@ -28,13 +30,13 @@ var shutdownHandler chan os.Signal
 // Only one of SetupSignalContext and SetupSignalHandler should be called, and only can
 // be called once.
 func SetupSignalHandler() <-chan struct{} {
-	return SetupSignalContext().Done()
+	return SetupSignalContext(0).Done()
 }
 
 // SetupSignalContext is same as SetupSignalHandler, but a context.Context is returned.
 // Only one of SetupSignalContext and SetupSignalHandler should be called, and only can
 // be called once.
-func SetupSignalContext() context.Context {
+func SetupSignalContext(index int) context.Context {
 	close(onlyOneSignalHandler) // panics when called twice
 
 	shutdownHandler = make(chan os.Signal, 2)
@@ -42,7 +44,10 @@ func SetupSignalContext() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	signal.Notify(shutdownHandler, shutdownSignals...)
 	go func() {
-		<-shutdownHandler
+		sig := <-shutdownHandler
+		sleepingDuration := time.Duration(index) * 10 * time.Second
+		logrus.Infof("Receive %v to exit. Sleeping for %v seconds", sig, sleepingDuration)
+		time.Sleep(sleepingDuration)
 		cancel()
 		<-shutdownHandler
 		os.Exit(1) // second signal. Exit directly.

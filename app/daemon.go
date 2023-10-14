@@ -1,9 +1,17 @@
 package app
 
 import (
+	"context"
 	"fmt"
+	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	lhclientset "github.com/longhorn/longhorn-manager/k8s/pkg/client/clientset/versioned"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd"
 	"net/http"
 	"os"
+	"sort"
+	"time"
 
 	_ "net/http/pprof" // for runtime profiling
 
@@ -134,7 +142,58 @@ func startManager(c *cli.Context) error {
 		return fmt.Errorf("failed to detect the node IP")
 	}
 
-	ctx := signals.SetupSignalContext()
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	if err != nil {
+		return errors.Wrap(err, "unable to get client config")
+	}
+
+	config.Burst = 100
+	config.QPS = 50
+
+	lhClient, err := lhclientset.NewForConfig(config)
+	if err != nil {
+		return errors.Wrap(err, "unable to get clientset")
+	}
+
+	namespace := os.Getenv(types.EnvPodNamespace)
+	if namespace == "" {
+		logrus.Warnf("Cannot detect pod namespace, environment variable %v is missing, "+
+			"using default namespace", types.EnvPodNamespace)
+		namespace = corev1.NamespaceDefault
+	}
+
+	var nodes []longhorn.Node
+	for i := 0; i < 15; i++ {
+		nodeList, err := lhClient.LonghornV1beta2().Nodes(namespace).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+		nodes = nodeList.Items
+		if len(nodes) == 3 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	if len(nodes) != 3 {
+		return fmt.Errorf("there must be 3 nodes instead of %v", len(nodes))
+	}
+
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].Name < nodes[j].Name
+	})
+
+	index := 0
+	for i, node := range nodes {
+		if currentNodeID == node.Name {
+			index = i
+			break
+		}
+	}
+
+	logrus.Infof("The current node is %v, with index is %v", currentNodeID, index)
+
+	ctx := signals.SetupSignalContext(index)
 
 	logger := logrus.StandardLogger().WithField("node", currentNodeID)
 
