@@ -566,6 +566,7 @@ func (s *DataStore) CreateVolume(v *longhorn.Volume) (*longhorn.Volume, error) {
 
 	ret, err := s.lhClient.LonghornV1beta2().Volumes(s.namespace).Create(context.TODO(), v, metav1.CreateOptions{})
 	if err != nil {
+		logrus.Debugf("%+v\n", ret)
 		return nil, err
 	}
 	if SkipListerCheck {
