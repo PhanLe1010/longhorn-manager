@@ -524,6 +524,16 @@ func (cs *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	setting, err := cs.apiClient.Setting.ById("storage-minimal-available-percentage")
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// adjust the setting to 26 to artificially injected the detach error into longhorn-csi-plugin
+	if setting.Value == "26" {
+		return nil, status.Error(codes.DeadlineExceeded, "Simulated detach error")
+	}
+
 	// VOLUME_NOT_FOUND is no longer the ControllerUnpublishVolume error
 	// See https://github.com/container-storage-interface/spec/issues/382 for details
 	if volume == nil {
