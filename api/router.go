@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -52,6 +53,10 @@ func NewRouter(s *Server) *mux.Router {
 
 	versionsHandler := api.VersionsHandler(schemas, "v1")
 	versionHandler := api.VersionHandler(schemas, "v1")
+	r.HandleFunc("v1/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "Longhorn manager is healthy")
+	})
 	r.Methods("GET").Path("/").Handler(versionsHandler)
 	r.Methods("GET").Path("/metrics").Handler(registry.Handler())
 	r.Methods("GET").Path("/v1").Handler(versionHandler)
