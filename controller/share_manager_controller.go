@@ -41,6 +41,7 @@ type ShareManagerController struct {
 	namespace      string
 	controllerID   string
 	serviceAccount string
+	staleNode      string
 
 	kubeClient    clientset.Interface
 	eventRecorder record.EventRecorder
@@ -216,6 +217,7 @@ func isShareManagerPod(obj interface{}) bool {
 		}
 	}
 
+	// This only matches once the pod is fully constructed, which may be the point.
 	podContainers := pod.Spec.Containers
 	for _, con := range podContainers {
 		if con.Name == types.LonghornLabelShareManager {
@@ -711,6 +713,10 @@ func (c *ShareManagerController) cleanupShareManagerPod(sm *longhorn.ShareManage
 	if err != nil {
 		log.WithError(err).Warnf("Failed to check isShareManagerPodStale(%v) when cleanupShareManagerPod", sm.Name)
 	}
+	if leaseExpired {
+		// Remember this node so we can avoid it in the new pod we will create.
+		c.staleNode = leaseHolder
+	}
 
 	// Clear the lease holder.  Staleness is now either dealt with or moot.
 	err = c.clearShareManagerLeaseHolder(sm)
@@ -887,6 +893,37 @@ func (c *ShareManagerController) getAffinityFromStorageClass(sc *storagev1.Stora
 	}
 }
 
+func (c *ShareManagerController) addStaleNodeAntiAffinity(affinity *corev1.Affinity, staleNode string) *corev1.Affinity {
+	var matchFields []corev1.NodeSelectorRequirement
+
+	matchFields = append(matchFields, corev1.NodeSelectorRequirement{
+		Key:      "metadata.name",
+		Operator: corev1.NodeSelectorOpNotIn,
+		Values:   []string{staleNode},
+	})
+
+	nodeAntiAffinity := &corev1.NodeAffinity{
+		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{
+			corev1.PreferredSchedulingTerm{
+				Weight: 100,
+				Preference: corev1.NodeSelectorTerm{
+					MatchExpressions: matchFields,
+				},
+			},
+		},
+	}
+
+	if affinity == nil {
+		affinity = &corev1.Affinity{
+			NodeAffinity: nodeAntiAffinity,
+		}
+	} else {
+		affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution = nodeAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	}
+
+	return affinity
+}
+
 func (c *ShareManagerController) getShareManagerNodeSelectorFromStorageClass(sc *storagev1.StorageClass) map[string]string {
 	value, ok := sc.Parameters["shareManagerNodeSelector"]
 	if !ok {
@@ -917,7 +954,8 @@ func (c *ShareManagerController) getShareManagerTolerationsFromStorageClass(sc *
 	return tolerations
 }
 
-// createShareManagerPod ensures existence of service, it's assumed that the pvc for this share manager already exists
+// createShareManagerPod ensures existence of corresponding service and lease.
+// it's assumed that the pvc for this share manager already exists.
 func (c *ShareManagerController) createShareManagerPod(sm *longhorn.ShareManager) (*corev1.Pod, error) {
 	tolerations, err := c.ds.GetSettingTaintToleration()
 	if err != nil {
@@ -1009,6 +1047,11 @@ func (c *ShareManagerController) createShareManagerPod(sm *longhorn.ShareManager
 			tolerationsFromStorageClass := c.getShareManagerTolerationsFromStorageClass(sc)
 			tolerations = append(tolerations, tolerationsFromStorageClass...)
 		}
+	}
+
+	if c.staleNode != "" {
+		affinity = c.addStaleNodeAntiAffinity(affinity, c.staleNode)
+		c.staleNode = ""
 	}
 
 	fsType := pv.Spec.CSI.FSType
