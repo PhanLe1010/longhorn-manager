@@ -960,6 +960,8 @@ func (c *ShareManagerController) getShareManagerTolerationsFromStorageClass(sc *
 // createShareManagerPod ensures existence of corresponding service and lease.
 // it's assumed that the pvc for this share manager already exists.
 func (c *ShareManagerController) createShareManagerPod(sm *longhorn.ShareManager) (*corev1.Pod, error) {
+	log := getLoggerForShareManager(c.logger, sm)
+
 	tolerations, err := c.ds.GetSettingTaintToleration()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get taint toleration setting before creating share manager pod")
@@ -1053,7 +1055,9 @@ func (c *ShareManagerController) createShareManagerPod(sm *longhorn.ShareManager
 	}
 
 	staleNode := c.staleNodeMap[sm.Name]
+	log.Infof("Cached stale node for share manager %v is %v", sm.Name, staleNode)
 	if staleNode != "" {
+		log.Infof("Creating anti-affinity for share manager pod against stale node %v", staleNode)
 		affinity = c.addStaleNodeAntiAffinity(affinity, staleNode)
 		delete(c.staleNodeMap, sm.Name)
 	}
@@ -1088,7 +1092,7 @@ func (c *ShareManagerController) createShareManagerPod(sm *longhorn.ShareManager
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create pod for share manager %v", sm.Name)
 	}
-	getLoggerForShareManager(c.logger, sm).WithField("pod", pod.Name).Infof("Created pod for share manager on node %v", pod.Spec.NodeName)
+	log.WithField("pod", pod.Name).Infof("Created pod for share manager on node %v", pod.Spec.NodeName)
 	return pod, nil
 }
 
