@@ -482,8 +482,28 @@ func (s *DataStore) AddLabelToManagerPod(nodeName string, label map[string]strin
 	if err != nil {
 		return err
 	}
+	changed := false
 	for key, value := range label {
-		pod.Labels[key] = value
+		if _, exists := pod.Labels[key]; !exists {
+			pod.Labels[key] = value
+			changed = true
+		}
+	}
+
+	// Protect against frequent no-change updates.
+	if changed {
+		_, err = s.UpdatePod(pod)
+	}
+	return err
+}
+
+func (s *DataStore) RemoveLabelFromManagerPod(nodeName string, label map[string]string) error {
+	pod, err := s.GetManagerPodForNode(nodeName)
+	if err != nil {
+		return err
+	}
+	for key := range label {
+		delete(pod.Labels, key)
 	}
 	_, err = s.UpdatePod(pod)
 	return err

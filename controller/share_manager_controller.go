@@ -1396,6 +1396,12 @@ func (c *ShareManagerController) isResponsibleFor(sm *longhorn.ShareManager) (bo
 			}
 		}
 
+		// Also, turn off the admission webhook on the suspected node.  Trying to talk to it
+		// will delay any effort to modify resources.
+		if err := c.ds.RemoveLabelFromManagerPod(leaseHolder, types.GetAdmissionWebhookLabel()); err != nil {
+			log.WithError(err).Warnf("Failed to turn off admission webhook on node %v", leaseHolder)
+		}
+
 		// In any event, this node takes responsibility.
 		return true, nil
 	}

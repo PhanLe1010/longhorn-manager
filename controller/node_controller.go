@@ -517,8 +517,6 @@ func (nc *NodeController) syncNode(key string) (err error) {
 
 	// Getting here is enough proof of life to clear Lease-based delinquency.
 	// The node clears itself here; setting it is done by share-manager lease checker.
-	// No good - there can be a race with a dying node clearing its condition
-	// immediately after it was set.
 	foundCondition := false
 	isDelinquent := false
 	for _, nodeCondition := range node.Status.Conditions {
@@ -534,6 +532,11 @@ func (nc *NodeController) syncNode(key string) (err error) {
 			longhorn.NodeConditionTypeDelinquent, longhorn.ConditionStatusFalse,
 			"", fmt.Sprintf("Node %v clears delinquency", node.Name))
 		log.Infof("Node %v clears its delinquency condition.", node.Name)
+	}
+
+	// Likewise for the suppressed webhook endpoint.
+	if err := nc.ds.AddLabelToManagerPod(node.Name, types.GetAdmissionWebhookLabel()); err != nil {
+		log.Warnf("Node %v faied to restore its admission webhook", node.Name)
 	}
 
 	// Create a monitor for collecting disk information
