@@ -35,6 +35,8 @@ import (
 	longhorn "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
 )
 
+const shareManagerLeaseDurationSeconds = 7 // This should be slightly more than twice the share-manager lease renewal interval.
+
 type ShareManagerController struct {
 	*baseController
 
@@ -216,27 +218,6 @@ func isShareManagerPod(obj interface{}) bool {
 	}
 	return false
 }
-
-/***
-func isShareManagerLease(obj interface{}) bool {
-	lease, ok := obj.(*coordinationv1.Lease)
-	if !ok {
-		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			return false
-		}
-
-		// use the last known state, to enqueue, dependent objects
-		lease, ok = deletedState.Obj.(*coordinationv1.Lease)
-		if !ok {
-			return false
-		}
-	}
-
-	smName := lease.Labels[types.GetLonghornLabelKey(types.LonghornLabelShareManager)]
-	return smName != ""
-}
-***/
 
 func (c *ShareManagerController) checkLeasesAndEnqueueAnyStale() error {
 	sms, err := c.ds.ListShareManagersRO()
@@ -1143,7 +1124,7 @@ func (c *ShareManagerController) createServiceManifest(sm *longhorn.ShareManager
 func (c *ShareManagerController) createLeaseManifest(sm *longhorn.ShareManager) *coordinationv1.Lease {
 	// No current holder, share-manager pod will fill it with its owning node.
 	holderIdentity := ""
-	leaseDurationSeconds := int32(7) // TODO - Make this a setting, share-manager-stale-timeout, 5 <= x <= 3600
+	leaseDurationSeconds := int32(shareManagerLeaseDurationSeconds)
 	leaseTransitions := int32(0)
 	now := time.Now()
 
@@ -1329,6 +1310,11 @@ func (c *ShareManagerController) createPodManifest(sm *longhorn.ShareManager, an
 func (c *ShareManagerController) isShareManagerPodStale(sm *longhorn.ShareManager) (stale bool, holder string, err error) {
 	log := getLoggerForShareManager(c.logger, sm)
 
+	if enabled, _ := c.ds.GetSettingAsBool(types.SettingNameEnableShareManagerFastFailover); !enabled {
+		// stale is false, holder is empty, err is nil
+		return
+	}
+
 	leaseName := sm.Name
 	lease, err := c.ds.GetLeaseRO(leaseName)
 	if err != nil {
@@ -1348,7 +1334,7 @@ func (c *ShareManagerController) isShareManagerPodStale(sm *longhorn.ShareManage
 		log.Warnf("Lease for %v held by %v has never been renewed by share-manager", leaseName, holder)
 		return
 	}
-	if *lease.Spec.LeaseDurationSeconds < 6 {
+	if *lease.Spec.LeaseDurationSeconds < shareManagerLeaseDurationSeconds {
 		log.Warnf("Lease for %v has a crazy value for duration: %v seconds.  Ignoring.", leaseName, *lease.Spec.LeaseDurationSeconds)
 		return
 	}
