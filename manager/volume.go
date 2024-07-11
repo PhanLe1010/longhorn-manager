@@ -347,7 +347,8 @@ func (m *VolumeManager) Salvage(volumeName string, replicaNames []string) (v *lo
 		if r.Spec.VolumeName != v.Name {
 			return nil, fmt.Errorf("replica %v doesn't belong to volume %v", r.Name, v.Name)
 		}
-		isDownOrDeleted, err := m.ds.IsNodeDownOrDeleted(r.Spec.NodeID)
+		isRWX, _ := m.ds.IsRegularRWXVolume(v.Name)
+		isDownOrDeleted, err := m.ds.IsNodeDownOrDeletedOrDelinquent(r.Spec.NodeID, isRWX)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check if the related node %v is still running for replica %v", r.Spec.NodeID, name)
 		}

@@ -56,7 +56,8 @@ func (h *InstanceHandler) syncStatusWithInstanceManager(im *longhorn.InstanceMan
 		}
 	}()
 
-	isDelinquent, _ := h.ds.IsNodeDelinquent(spec.NodeID)
+	// isDelinquent, _ := h.ds.IsNodeDelinquent(spec.NodeID)
+
 	if im == nil || im.Status.CurrentState == longhorn.InstanceManagerStateUnknown {
 		if status.Started {
 			if status.CurrentState != longhorn.InstanceStateUnknown {
@@ -77,7 +78,7 @@ func (h *InstanceHandler) syncStatusWithInstanceManager(im *longhorn.InstanceMan
 	if im.Status.CurrentState == longhorn.InstanceManagerStateStopped ||
 		im.Status.CurrentState == longhorn.InstanceManagerStateError ||
 		im.DeletionTimestamp != nil {
-		if status.Started || isDelinquent {
+		if status.Started {
 			if status.CurrentState != longhorn.InstanceStateError {
 				logrus.Warnf("Marking the instance as state ERROR since failed to find the instance manager for the running instance %v", instanceName)
 			}
@@ -282,7 +283,8 @@ func (h *InstanceHandler) ReconcileInstanceState(obj interface{}, spec *longhorn
 				return nil
 			}
 			// The related node maybe cleaned up then there is no available instance manager for this instance (typically it's replica).
-			isNodeDownOrDeleted, err := h.ds.IsNodeDownOrDeleted(spec.NodeID)
+			isRWX, _ := h.ds.IsRegularRWXVolume(spec.VolumeName)
+			isNodeDownOrDeleted, err := h.ds.IsNodeDownOrDeletedOrDelinquent(spec.NodeID, isRWX)
 			if err != nil {
 				return err
 			}

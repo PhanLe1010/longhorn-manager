@@ -2041,7 +2041,8 @@ func (c *VolumeController) reconcileVolumeSize(v *longhorn.Volume, e *longhorn.E
 }
 
 func (c *VolumeController) canInstanceManagerLaunchReplica(r *longhorn.Replica) (bool, error) {
-	nodeDown, err := c.ds.IsNodeDownOrDeleted(r.Spec.NodeID)
+	isRWX, _ := c.ds.IsRegularRWXVolume(r.Spec.VolumeName)
+	nodeDown, err := c.ds.IsNodeDownOrDeletedOrDelinquent(r.Spec.NodeID, isRWX)
 	if err != nil {
 		return false, errors.Wrapf(err, "fail to check IsNodeDownOrDeleted %v", r.Spec.NodeID)
 	}
@@ -4368,8 +4369,8 @@ func (c *VolumeController) isResponsibleFor(v *longhorn.Volume, defaultEngineIma
 	}()
 
 	// If there is a share manager pod and it has an owner, we should use that too.
-	if isRegularRWXVolume(v) {
-		if isDelinquent, _ := c.ds.IsNodeDelinquent(v.Status.OwnerID); isDelinquent {
+	if isRWX := isRegularRWXVolume(v); isRWX {
+		if isDelinquent, _ := c.ds.IsNodeDownOrDeletedOrDelinquent(v.Status.OwnerID, isRWX); isDelinquent {
 			pod, err := c.ds.GetPodRO(v.Namespace, types.GetShareManagerPodNameFromShareManagerName(v.Name))
 			if err == nil && pod != nil {
 				return c.controllerID == pod.Spec.NodeName, nil

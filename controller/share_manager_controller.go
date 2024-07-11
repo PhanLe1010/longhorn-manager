@@ -1055,7 +1055,6 @@ func (c *ShareManagerController) createShareManagerPod(sm *longhorn.ShareManager
 	}
 
 	staleNode := c.staleNodeMap[sm.Name]
-	log.Infof("Cached stale node for share manager %v is %v", sm.Name, staleNode)
 	if staleNode != "" {
 		log.Infof("Creating anti-affinity for share manager pod against stale node %v", staleNode)
 		affinity = c.addStaleNodeAntiAffinity(affinity, staleNode)

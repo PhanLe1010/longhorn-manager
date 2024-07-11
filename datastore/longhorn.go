@@ -2942,6 +2942,35 @@ func (s *DataStore) IsNodeDownOrDeleted(name string) (bool, error) {
 	return false, nil
 }
 
+// IsNodeDownOrDeletedOrDelinquent gets Node for the given name and checks
+// if the Node condition is gone or not ready or, if we are asking on behalf
+// of an RWX-related resource, delinquent.
+func (s *DataStore) IsNodeDownOrDeletedOrDelinquent(name string, isRWX bool) (bool, error) {
+	if name == "" {
+		return false, errors.New("no node name provided to check node down or deleted or delinquent")
+	}
+	node, err := s.GetNodeRO(name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	cond := types.GetCondition(node.Status.Conditions, longhorn.NodeConditionTypeReady)
+	if cond.Status == longhorn.ConditionStatusFalse &&
+		(cond.Reason == string(longhorn.NodeConditionReasonKubernetesNodeGone) ||
+			cond.Reason == string(longhorn.NodeConditionReasonKubernetesNodeNotReady)) {
+		return true, nil
+	}
+	if isRWX {
+		cond = types.GetCondition(node.Status.Conditions, longhorn.NodeConditionTypeDelinquent)
+		if cond.Status == longhorn.ConditionStatusTrue {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // IsNodeDeleted checks whether the node does not exist by passing in the node name
 func (s *DataStore) IsNodeDeleted(name string) (bool, error) {
 	if name == "" {
