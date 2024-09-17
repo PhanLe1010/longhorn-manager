@@ -63,7 +63,7 @@ func (s *WebhookServer) admissionWebhookListenAndServe() error {
 
 	router := mux.NewRouter()
 
-	router.Handle("/v1/healthz", newhealthzHandler())
+	router.Handle("/v1/healthz", newhealthzHandler("admissionWebhook"))
 	router.Handle(validationPath, validationHandler)
 	router.Handle(mutationPath, mutationHandler)
 	if err := s.runAdmissionWebhookListenAndServe(router, validationResources, mutationResources); err != nil {
@@ -81,13 +81,13 @@ func (s *WebhookServer) conversionWebhookListenAndServe() error {
 
 	router := mux.NewRouter()
 
-	router.Handle("/v1/healthz", newhealthzHandler())
+	router.Handle("/v1/healthz", newhealthzHandler("conversionWebhook"))
 	router.Handle(conversionPath, conversionHandler)
 	if err := s.runConversionWebhookListenAndServe(router, conversionResources); err != nil {
 		return err
 	}
 
-	return s.clients.Start(s.context)
+	return nil
 }
 
 func (s *WebhookServer) ListenAndServe() error {

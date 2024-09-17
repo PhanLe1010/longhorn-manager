@@ -3,6 +3,7 @@ package csi
 import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"time"
 
 	longhornclient "github.com/longhorn/longhorn-manager/client"
 )
@@ -24,9 +25,9 @@ func (m *Manager) Run(driverName, nodeID, endpoint, identityVersion, managerURL 
 
 	// Longhorn API Client
 	clientOpts := &longhornclient.ClientOpts{Url: managerURL}
-	apiClient, err := longhornclient.NewRancherClient(clientOpts)
+	apiClient, err := initRancherClient(clientOpts)
 	if err != nil {
-		return errors.Wrap(err, "Failed to initialize Longhorn API client")
+		return err
 	}
 
 	// Create GRPC servers
@@ -38,4 +39,21 @@ func (m *Manager) Run(driverName, nodeID, endpoint, identityVersion, managerURL 
 	s.Wait()
 
 	return nil
+}
+
+func initRancherClient(clientOpts *longhornclient.ClientOpts) (*longhornclient.RancherClient, error) {
+	maxRetry := 20
+	var lastErr error
+
+	for i := 0; i < maxRetry; i++ {
+		apiClient, err := longhornclient.NewRancherClient(clientOpts)
+		if err == nil {
+			return apiClient, nil
+		}
+		logrus.Warnf("Failed to initialize Longhorn API client %v. Retrying", err)
+		lastErr = err
+		time.Sleep(time.Second)
+	}
+
+	return nil, errors.Wrap(lastErr, "Failed to initialize Longhorn API client")
 }

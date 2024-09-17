@@ -18,13 +18,18 @@ func addHandler(router *webhook.Router, admissionType string, admitter admission
 }
 
 type healthzHandler struct {
+	Name string
 }
 
-func newhealthzHandler() *healthzHandler {
-	return &healthzHandler{}
+func newhealthzHandler(name string) *healthzHandler {
+	return &healthzHandler{
+		Name: name,
+	}
 }
 
 func (h *healthzHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	logrus.Infof("====================> type: %v. Someone check the health of me.", h.Name)
 	w.WriteHeader(http.StatusOK)
+	logrus.Infof("====================> type: %v. I sent the response back.", h.Name)
 	return
 }

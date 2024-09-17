@@ -66,7 +66,7 @@ func CheckWebhookServiceAvailability(webhookType string) error {
 
 func isServiceAvailable(endpoint string, timeout time.Duration) bool {
 	cli := http.Client{
-		Timeout: time.Second,
+		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
