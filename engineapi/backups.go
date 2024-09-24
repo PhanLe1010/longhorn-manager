@@ -167,6 +167,7 @@ func (btc *BackupTargetClient) BackupVolumeNameList(destURL string, credential m
 	output, err := btc.ExecuteEngineBinary("backup", "ls", "--volume-only", btc.URL)
 	if err != nil {
 		if types.ErrorIsNotFound(err) {
+			logrus.Infof("=======================> BackupVolumeNameList get error %v", err)
 			return nil, nil
 		}
 		return nil, errors.Wrapf(err, "error listing backup volume names")

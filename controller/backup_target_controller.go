@@ -401,6 +401,7 @@ func (btc *BackupTargetController) syncBackupVolume(backupTarget *longhorn.Backu
 
 	// Get a list of all the backup volumes that are stored in the backup target
 	res, err := backupTargetClient.BackupVolumeNameList(backupTargetClient.URL, backupTargetClient.Credential)
+	logrus.Infof("==============> res: %v", res)
 	if err != nil {
 		backupTarget.Status.Available = false
 		backupTarget.Status.Conditions = types.SetCondition(backupTarget.Status.Conditions,
@@ -411,6 +412,8 @@ func (btc *BackupTargetController) syncBackupVolume(backupTarget *longhorn.Backu
 		return syncTimeRequired, nil // Ignore error to allow status update as well as preventing enqueue
 	}
 	backupStoreBackupVolumes := sets.NewString(res...)
+
+	logrus.Infof("==============> len(backupStoreBackupVolumes): %v", len(backupStoreBackupVolumes))
 
 	// Get a list of all the backup volumes that exist as custom resources in the cluster
 	clusterBackupVolumes, err := btc.ds.ListBackupVolumes()
@@ -424,6 +427,8 @@ func (btc *BackupTargetController) syncBackupVolume(backupTarget *longhorn.Backu
 		clusterBackupVolumesSet.Insert(b.Name)
 	}
 
+	logrus.Infof("==============> len(clusterBackupVolumesSet): %v", len(clusterBackupVolumesSet))
+
 	// TODO: add a unit test, separate to a function
 	// Get a list of backup volumes that *are* in the backup target and *aren't* in the cluster
 	// and create the BackupVolume CR in the cluster
@@ -431,6 +436,7 @@ func (btc *BackupTargetController) syncBackupVolume(backupTarget *longhorn.Backu
 	if count := backupVolumesToPull.Len(); count > 0 {
 		log.Infof("Found %d backup volumes in the backup target that do not exist in the cluster and need to be pulled", count)
 	}
+	logrus.Infof("==============> len(backupVolumesToPull): %v, backupVolumesToPull: %v ", len(backupVolumesToPull), backupVolumesToPull)
 	for backupVolumeName := range backupVolumesToPull {
 		backupVolume := &longhorn.BackupVolume{
 			ObjectMeta: metav1.ObjectMeta{
