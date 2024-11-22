@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/pkg/errors"
@@ -393,7 +394,13 @@ func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		if err := unmount(targetPath, mounter); err != nil {
 			log.Warnf("Failed to unmount error: %v", err)
 		}
-		return nil, status.Errorf(codes.InvalidArgument, "volume %s hasn't been attached yet", volumeID)
+		// Wait upto 15s for volume to attach
+		checkVolumeAttached := func(vol *longhornclient.Volume) bool {
+			return volume.State == string(longhorn.VolumeStateAttached) && volume.Controllers[0].Endpoint != ""
+		}
+		if !ns.waitForVolumeState(volumeID, "volume attached", checkVolumeAttached, false, false) {
+			return nil, status.Errorf(codes.InvalidArgument, "volume %s hasn't been attached yet", volumeID)
+		}
 	}
 
 	if !volume.Ready {
@@ -513,6 +520,43 @@ func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 	log.Infof("Mounted volume %v on node %v via device %v", volumeID, ns.nodeID, devicePath)
 	return &csi.NodeStageVolumeResponse{}, nil
+}
+
+func (ns *NodeServer) waitForVolumeState(volumeID string, stateDescription string,
+	predicate func(vol *longhornclient.Volume) bool, notFoundRetry, notFoundReturn bool) bool {
+	log := getLoggerForCSIControllerServer()
+	log = log.WithFields(logrus.Fields{"function": "waitForVolumeState"})
+	timer := time.NewTimer(15 * time.Second)
+	defer timer.Stop()
+	timeout := timer.C
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	tick := ticker.C
+
+	for {
+		select {
+		case <-timeout:
+			log.Warnf("Timeout wTile waiting for volume %s state %s", volumeID, stateDescription)
+			return false
+		case <-tick:
+			existVol, err := ns.apiClient.Volume.ById(volumeID)
+			if err != nil {
+				log.Warnf("Failed to get volume while waiting for volume %s state %s error %s", volumeID, stateDescription, err)
+				continue
+			}
+			if existVol == nil {
+				log.Warnf("Volume %s does not exist", volumeID)
+				if notFoundRetry {
+					continue
+				}
+				return notFoundReturn
+			}
+			if predicate(existVol) {
+				return true
+			}
+		}
+	}
 }
 
 func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
