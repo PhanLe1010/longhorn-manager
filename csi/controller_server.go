@@ -283,7 +283,13 @@ func (cs *ControllerServer) getBackupVolume(volumeName string) (*longhornclient.
 		return nil, errors.Wrapf(err, "getBackupVolume: fail to get source volume %v", volumeName)
 	}
 
+	logrus.Infof("================> is list nill?: %v", list == nil)
+	logrus.Infof("================> list: %+v", list)
+
 	for _, bv := range list.Data {
+		logrus.Infof("================> is vol nill: %v", vol == nil)
+		logrus.Infof("================> bv: %+v, vol: %+v", bv, vol)
+
 		if bv.BackupTargetName == vol.BackupTargetName && bv.VolumeName == volumeName {
 			return &bv, nil
 		}
