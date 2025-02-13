@@ -586,6 +586,7 @@ func getDiskFormat(exec utilexec.Interface, disk string) (string, error) {
 				// For `blkid`, if the specified token (TYPE/PTTYPE, etc) was
 				// not found, or no (specified) devices could be identified, an
 				// exit code of 2 is returned.
+				klog.Error("==========================> blkid return exit code 2")
 				return "", nil
 			}
 		}

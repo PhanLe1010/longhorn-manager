@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/pkg/errors"
@@ -430,10 +431,16 @@ func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		return nil, status.Errorf(codes.Internal, "volume %v cannot get format mounter that support filesystem %v creation", volumeID, fsType)
 	}
 
+	logrus.Infof("=======================> sleeping for 3 seconds before GetDiskFormat ")
+	time.Sleep(3 * time.Second)
+
 	diskFormat, err := formatMounter.GetDiskFormat(devicePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to evaluate device filesystem format")
 	}
+
+	logrus.Infof("=======================> sleeping for 10 seconds after GetDiskFormat")
+	time.Sleep(10 * time.Second)
 
 	log.Infof("Volume %v device %v contains filesystem of format %v", volumeID, devicePath, diskFormat)
 
