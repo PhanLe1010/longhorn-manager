@@ -1744,11 +1744,15 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replicaName, add
 
 	log := ec.logger.WithFields(logrus.Fields{"volume": e.Spec.VolumeName, "engine": e.Name})
 
+	log.Infof("=============> 1 Starting rebuilding of replica %v with address %v", replicaName, addr)
+
 	engineClientProxy, err := ec.getEngineClientProxy(e, e.Status.CurrentImage)
 	if err != nil {
 		return err
 	}
 	defer engineClientProxy.Close()
+
+	log.Infof("=============> 2 Starting rebuilding of replica %v with address %v", replicaName, addr)
 
 	// we need to know the current status, since ReplicaAddressMap may
 	// haven't been updated since last rebuild
@@ -1760,6 +1764,8 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replicaName, add
 		ec.logger.Infof("Replica %v address %v has been added to the engine already", replicaName, addr)
 		return nil
 	}
+
+	log.Infof("=============> 3 Starting rebuilding of replica %v with address %v", replicaName, addr)
 
 	replicaURL := engineapi.GetBackendReplicaURL(addr)
 	go func() {
@@ -1943,12 +1949,17 @@ func (ec *EngineController) startRebuilding(e *longhorn.Engine, replicaName, add
 		}
 	}()
 
+	log.Infof("=============> 4 Starting rebuilding of replica %v with address %v", replicaName, addr)
+
 	// Wait until engine confirmed that rebuild started
 	if err := wait.PollUntilContextTimeout(context.Background(), EnginePollInterval, EnginePollTimeout, true, func(context.Context) (bool, error) {
+		log.Infof("=============> 4.1 Starting rebuilding of replica %v with address %v", replicaName, addr)
 		return doesAddressExistInEngine(e, addr, engineClientProxy)
 	}); err != nil {
 		return err
 	}
+
+	log.Infof("=============> 5 Starting rebuilding of replica %v with address %v", replicaName, addr)
 	return nil
 }
 
