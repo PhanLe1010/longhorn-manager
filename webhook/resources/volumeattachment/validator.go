@@ -110,7 +110,13 @@ func (v *volumeAttachmentValidator) verifyTicketCountForMigratableVolume(va *lon
 		return nil
 	}
 
-	switch numTickets := len(va.Spec.AttachmentTickets); {
+	numTickets := 0
+	for _, ticket := range va.Spec.AttachmentTickets {
+		if ticket.Type == longhorn.AttacherTypeCSIAttacher {
+			numTickets++
+		}
+	}
+	switch {
 	case numTickets < 2:
 		return nil
 	case numTickets == 2:
